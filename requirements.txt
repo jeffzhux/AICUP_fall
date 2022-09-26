@@ -1,0 +1,6 @@
+zipfile36
+Pillow
+pandas
+addict
+yapf
+regex

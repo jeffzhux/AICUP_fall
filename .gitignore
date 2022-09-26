@@ -1,0 +1,7 @@
+#環境
+.venv/
+
+#實驗記錄
+experiment/
+data/
+data_original/
