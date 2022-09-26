@@ -221,7 +221,7 @@ def main_worker(rank, world_size, cfg):
     model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
     model.cuda()
     #如果網路當中有不需要backward的find_unused_parameters 要設為 True
-    model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[cfg.local_rank], find_unused_parameters=False)
+    model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[cfg.local_rank], find_unused_parameters=True)
     
     # build criterion
     criterion = build_loss(cfg.loss).cuda()#NegativeCosineSimilarity().cuda()
