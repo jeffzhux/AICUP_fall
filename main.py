@@ -121,8 +121,9 @@ def train(model, dataloader, criterion, optimizer, epoch, cfg, logger=None, writ
     
     if writer is not None:
         lr = optimizer.param_groups[0]['lr']
-        writer.add_scalar('Pretrain/lr', lr, epoch)
-        writer.add_scalar('Pretrain/loss', losses.avg, epoch)
+        writer.add_scalar('Train/lr', lr, epoch)
+        writer.add_scalar('Train/loss', losses.avg, epoch)
+        writer.add_scalar('Train/acc@1', top1.avg, epoch)
 
 def valid(model, dataloader, criterion, optimizer, epoch, cfg, logger, writer):
     losses = AverageMeter()
@@ -166,8 +167,8 @@ def valid(model, dataloader, criterion, optimizer, epoch, cfg, logger, writer):
                     f'valid_Acc@5: {top5.avg:.3f}')
 
     if writer is not None:
-        writer.add_scalar('Linear/valid/loss', losses.avg, epoch)
-        writer.add_scalar('Linear/valid/acc', top1.avg, epoch)
+        writer.add_scalar('Valid/loss', losses.avg, epoch)
+        writer.add_scalar('Valid/acc@1', top1.avg, epoch)
     
 
 def main_worker(rank, world_size, cfg):
