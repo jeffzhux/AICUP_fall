@@ -190,7 +190,7 @@ def main_worker(rank, world_size, cfg):
     logger, writer = None, None
     if rank == 0:
         writer = SummaryWriter(log_dir=os.path.join(cfg.work_dir, 'tensorboard'))
-        logger = build_logger(cfg.work_dir, 'pretrain')
+        logger = build_logger(cfg.work_dir, 'train')
 
     bsz_gpu = int(cfg.batch_size / cfg.world_size)
     print('batch_size per gpu:', bsz_gpu)

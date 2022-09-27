@@ -29,7 +29,8 @@ data = dict(
 model = dict(
     type="EfficientNet_Base",
     backbone = dict(
-        arch='b0',
+        type = 'efficientnet_b0',
+        weights = 'EfficientNet_B0_Weights.IMAGENET1K_V1',
         num_classes = 33
     )
     
