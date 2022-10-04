@@ -40,7 +40,7 @@ class randomAim(object):
 
 def base():
     transform = transforms.Compose([
-        T.Resize((128, 128)),
+        T.Resize((224, 224)),
         T.ToTensor(),
         T.Normalize(imagenet_normalize['mean'], imagenet_normalize['std'])
     ])
