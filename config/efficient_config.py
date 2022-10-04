@@ -3,7 +3,7 @@ seed = 2022
 
 #data
 data_root = './data'
-num_workers = 2
+num_workers = 8
 data = dict(
     train = dict(
         root=f'{data_root}/train',
@@ -42,15 +42,15 @@ loss = dict(
 
 )
 #train
-epochs = 1
-batch_size = 32
+epochs = 200
+batch_size = 128
 
 # optimizer
-lr = 0.5
+lr = 0.01
 optimizer = dict(
-    type='SGD',
+    type='Adam',
     lr = lr,
-    momentum = 0.9,
+    # momentum = 0.9,
     weight_decay = 1e-4
 
 )
