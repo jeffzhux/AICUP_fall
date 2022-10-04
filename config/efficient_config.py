@@ -12,7 +12,7 @@ data = dict(
         )
     ),
     vaild = dict(
-        root=f'{data_root}/vaild',
+        root=f'{data_root}/valid',
         transform = dict(
             type='base'
         )
