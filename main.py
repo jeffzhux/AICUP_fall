@@ -66,7 +66,8 @@ def load_weights(ckpt_path, model, optimizer, resume=True) -> None:
     return start_epoch
 
 def train(model, dataloader, criterion, optimizer, epoch, cfg, logger=None, writer=None):
-
+    model.train() # 開啟batch normalization 和 dropout
+    
     batch_time = AverageMeter()
     data_time = AverageMeter()
     losses = AverageMeter()
@@ -126,6 +127,8 @@ def train(model, dataloader, criterion, optimizer, epoch, cfg, logger=None, writ
         writer.add_scalar('Train/acc@1', top1.avg, epoch)
 
 def valid(model, dataloader, criterion, optimizer, epoch, cfg, logger, writer):
+    model.eval() # 開啟batch normalization 和 dropout
+
     losses = AverageMeter()
     top1 = AverageMeter()
     top5 = AverageMeter()
@@ -207,7 +210,7 @@ def main_worker(rank, world_size, cfg):
         sampler=train_sampler,
         drop_last=True
     )
-    valid_set = build_dataset(cfg.data.train)
+    valid_set = build_dataset(cfg.data.vaild)
     valid_loader = torch.utils.data.DataLoader(
         valid_set,
         batch_size=bsz_gpu,
@@ -221,7 +224,7 @@ def main_worker(rank, world_size, cfg):
     model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
     model.cuda()
     #如果網路當中有不需要backward的find_unused_parameters 要設為 True
-    model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[cfg.local_rank], find_unused_parameters=True)
+    model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[cfg.local_rank], find_unused_parameters=False)
     
     # build criterion
     criterion = build_loss(cfg.loss).cuda()#NegativeCosineSimilarity().cuda()
@@ -235,7 +238,7 @@ def main_worker(rank, world_size, cfg):
 
     cudnn.benchmark = True
 
-    model.train() # 開啟batch normalization 和 dropout
+    
     for epoch in range(start_epoch, cfg.epochs + 1):
         train_sampler.set_epoch(epoch)
         adjust_learning_rate(cfg.lr_cfg, optimizer, epoch)

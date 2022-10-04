@@ -8,7 +8,7 @@ data = dict(
     train = dict(
         root=f'{data_root}/train',
         transform = dict(
-            type='base'
+            type='baseWithAim'
         )
     ),
     vaild = dict(
