@@ -23,9 +23,6 @@ data = dict(
     #         type='cifar10_valid'
     #     )
     # ),
-    collate = dict(
-        type = 'None'
-    ),
     train = dict(
         root=f'{data_root}/train',
         type = 'AICUP_ImageFolder',
@@ -66,7 +63,7 @@ loss = dict(
 
 )
 #train
-epochs = 200
+epochs = 50
 batch_size = 128
 
 # optimizer

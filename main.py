@@ -1,4 +1,5 @@
 
+from cProfile import label
 import os
 import platform
 import argparse
@@ -12,7 +13,8 @@ import torch.distributed as dist
 import torch
 
 from torch.utils.tensorboard import SummaryWriter
-from utils.util import AverageMeter, TrackMeter, accuracy, adjust_learning_rate, format_time, set_seed
+from utils.augmentation import mixup_data
+from utils.util import AverageMeter, TrackMeter, accuracy, mixup_accuracy, adjust_learning_rate, format_time, set_seed
 from utils.build import build_logger
 from datasets.build import build_dataset
 from models.build import build_model
@@ -80,7 +82,10 @@ def train(model, dataloader, criterion, optimizer, epoch, cfg, logger=None, writ
         
         imgs = imgs.cuda(non_blocking=True)
         labels = labels.cuda(non_blocking=True)
-        batch_size = labels.size(0)
+        if cfg.train_loss['type'] == 'MixUpLoss':
+            imgs, labels = mixup_data(imgs, labels)
+
+        batch_size = imgs.size(0)
 
         # measure data loading time
         data_time.update(time.time() - iter_end)
@@ -91,7 +96,10 @@ def train(model, dataloader, criterion, optimizer, epoch, cfg, logger=None, writ
         losses.update(loss.item(), batch_size)
 
         # accurate
-        acc1, acc5 = accuracy(logits, labels, topk=(1,5))
+        if cfg.train_loss['type'] == 'MixUpLoss':
+            acc1, acc5 = mixup_accuracy(logits, labels, topk=(1,5))
+        else:
+            acc1, acc5 = accuracy(logits, labels, topk=(1,5))
         top1.update(acc1.item(), batch_size)
 
         # compute gradient and do SGD step
@@ -137,8 +145,8 @@ def valid(model, dataloader, criterion, optimizer, epoch, cfg, logger, writer):
 
     with torch.no_grad():
         for idx, (images, targets) in enumerate(dataloader):
-            images = images.float().cuda()
-            targets = targets.cuda()
+            images = images.cuda(non_blocking=True)
+            targets = targets.cuda(non_blocking=True)
             batch_size = targets.shape[0]
 
             # forward
@@ -202,12 +210,10 @@ def main_worker(rank, world_size, cfg):
 
     train_set =  build_dataset(cfg.data.train)
     train_sampler = torch.utils.data.distributed.DistributedSampler(train_set, shuffle=True)
-    train_collate = build_collate(cfg.data.collate)
     train_loader = torch.utils.data.DataLoader(
         train_set,
         batch_size=bsz_gpu,
         num_workers=cfg.num_workers,
-        collate_fn = train_collate,
         pin_memory=True,
         sampler=train_sampler,
         drop_last=True
@@ -229,8 +235,8 @@ def main_worker(rank, world_size, cfg):
     model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[cfg.local_rank], find_unused_parameters=False)
     
     # build criterion
-    criterion = build_loss(cfg.loss).cuda()#NegativeCosineSimilarity().cuda()
-    
+    train_criterion = build_loss(cfg.train_loss).cuda()#NegativeCosineSimilarity().cuda()
+    valid_criterion = build_loss(cfg.valid_loss).cuda()
     # build optimizer
     optimizer = build_optimizer(cfg.optimizer, model.parameters())
 
@@ -246,9 +252,9 @@ def main_worker(rank, world_size, cfg):
         adjust_learning_rate(cfg.lr_cfg, optimizer, epoch)
 
         # train; all processes
-        train(model, train_loader, criterion, optimizer, epoch, cfg, logger, writer)
+        train(model, train_loader, train_criterion, optimizer, epoch, cfg, logger, writer)
         
-        valid(model, valid_loader, criterion, optimizer, epoch, cfg, logger, writer)
+        valid(model, valid_loader, valid_criterion, optimizer, epoch, cfg, logger, writer)
 
         # save ckpt; master process
         if rank == 0 and epoch % cfg.save_interval == 0:

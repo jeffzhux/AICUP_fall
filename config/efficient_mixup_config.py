@@ -5,9 +5,6 @@ seed = 2022
 data_root = './data'
 num_workers = 8
 data = dict(
-    collate = dict(
-        type = 'MixUp_CollateFunction'
-    ),
     train = dict(
         root=f'{data_root}/train',
         type = 'AICUP_ImageFolder',
@@ -43,12 +40,14 @@ model = dict(
 )
 
 # loss
-loss = dict(
+train_loss = dict(
     type = 'MixUpLoss'
-
+)
+valid_loss = dict(
+    type = 'CrossEntropyLoss'
 )
 #train
-epochs = 1
+epochs = 50
 batch_size = 128
 
 # optimizer
@@ -73,7 +72,7 @@ lr_cfg = dict(  # passed to adjust_learning_rate(cfg=lr_cfg)
 
 
 #log & save
-log_interval = 20
+log_interval = 50
 save_interval = 5
 work_dir = './experiment/efficient_mixup'
 port = 10001
