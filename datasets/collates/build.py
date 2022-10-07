@@ -6,4 +6,7 @@ def build_collate(cfg: ConfigDict):
     
     args = cfg.copy()
     name = args.pop('type')
-    return collates.__dict__[name](args)
+    if name == None:
+        return None
+    else:
+        return collates.__dict__[name](**args)

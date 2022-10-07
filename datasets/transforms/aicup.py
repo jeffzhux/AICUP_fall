@@ -49,7 +49,8 @@ def base():
 def baseWithAim():
     transform = transforms.Compose([
         T.RandomApply([randomAim()], p=1),
-        T.Resize((128, 128)),
+        T.RandomResizedCrop((224, 224)),
+        T.RandomHorizontalFlip(),
         T.ToTensor(),
         T.Normalize(imagenet_normalize['mean'], imagenet_normalize['std'])
     ])

@@ -3,6 +3,7 @@ import os
 import platform
 import argparse
 from pyexpat import model
+from datasets.collates.build import build_collate
 from utils.config import Config
 import time
 import torch.backends.cudnn as cudnn
@@ -14,7 +15,6 @@ from torch.utils.tensorboard import SummaryWriter
 from utils.util import AverageMeter, TrackMeter, accuracy, adjust_learning_rate, format_time, set_seed
 from utils.build import build_logger
 from datasets.build import build_dataset
-from datasets.collates.collate import CollateFunction
 from models.build import build_model
 from losses.build import build_loss
 from optimizers.build import build_optimizer
@@ -202,10 +202,12 @@ def main_worker(rank, world_size, cfg):
 
     train_set =  build_dataset(cfg.data.train)
     train_sampler = torch.utils.data.distributed.DistributedSampler(train_set, shuffle=True)
+    train_collate = build_collate(cfg.data.collate)
     train_loader = torch.utils.data.DataLoader(
         train_set,
         batch_size=bsz_gpu,
         num_workers=cfg.num_workers,
+        collate_fn = train_collate,
         pin_memory=True,
         sampler=train_sampler,
         drop_last=True

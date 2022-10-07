@@ -5,26 +5,8 @@ seed = 2022
 data_root = './data'
 num_workers = 8
 data = dict(
-    # train = dict(
-    #     root=f'./cifar10_data/train',
-    #     type = 'CIFAR10',
-    #     download=False,
-    #     train = True,
-    #     transform = dict(
-    #         type='cifar10_train'
-    #     )
-    # ),
-    # vaild = dict(
-    #     root=f'./cifar10_data/train',
-    #     type = 'CIFAR10',
-    #     download=False,
-    #     train = False,
-    #     transform = dict(
-    #         type='cifar10_valid'
-    #     )
-    # ),
     collate = dict(
-        type = 'None'
+        type = 'MixUp_CollateFunction'
     ),
     train = dict(
         root=f'{data_root}/train',
@@ -62,11 +44,11 @@ model = dict(
 
 # loss
 loss = dict(
-    type = 'CrossEntropyLoss'
+    type = 'MixUpLoss'
 
 )
 #train
-epochs = 200
+epochs = 1
 batch_size = 128
 
 # optimizer
@@ -93,7 +75,7 @@ lr_cfg = dict(  # passed to adjust_learning_rate(cfg=lr_cfg)
 #log & save
 log_interval = 20
 save_interval = 5
-work_dir = './experiment/efficient'
+work_dir = './experiment/efficient_mixup'
 port = 10001
 resume = None # (路徑) 從中斷的地方開始 train
 #load = None # (路徑) 載入訓練好的模型 test

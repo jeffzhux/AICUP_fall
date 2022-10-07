@@ -2,6 +2,7 @@
 .venv/
 
 #實驗記錄
+cifar10_data/train
 experiment/
 data/
 data_original/
