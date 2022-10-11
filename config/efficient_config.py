@@ -4,30 +4,17 @@ seed = 2022
 #data
 data_root = './data'
 num_workers = 8
+num_classes = 33
 data = dict(
-    # train = dict(
-    #     root=f'./cifar10_data/train',
-    #     type = 'CIFAR10',
-    #     download=False,
-    #     train = True,
-    #     transform = dict(
-    #         type='cifar10_train'
-    #     )
-    # ),
-    # vaild = dict(
-    #     root=f'./cifar10_data/train',
-    #     type = 'CIFAR10',
-    #     download=False,
-    #     train = False,
-    #     transform = dict(
-    #         type='cifar10_valid'
-    #     )
-    # ),
+    collate = dict(
+        type = 'MixupCollate',
+        num_classes = num_classes
+    ),
     train = dict(
         root=f'{data_root}/train',
         type = 'AICUP_ImageFolder',
         transform = dict(
-            type='baseWithAim'
+            type='baseOnAim'
         )
     ),
     vaild = dict(
@@ -52,7 +39,7 @@ model = dict(
     backbone = dict(
         type = 'efficientnet_b0',
         weights = 'EfficientNet_B0_Weights.IMAGENET1K_V1',
-        num_classes = 33 
+        num_classes = num_classes 
     )
     
 )
@@ -60,11 +47,10 @@ model = dict(
 # loss
 loss = dict(
     type = 'CrossEntropyLoss'
-
 )
 #train
-epochs = 50
-batch_size = 128
+epochs = 1
+batch_size = 16
 
 # optimizer
 lr = 0.001

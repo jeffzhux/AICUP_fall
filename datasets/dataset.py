@@ -48,7 +48,6 @@ class AICUP_ImageFolder(ImageFolder):
         """
         Args:
             index (int): Index
-
         Returns:
             tuple: (sample, target) where target is class_index of the target class.
         """
@@ -60,3 +59,4 @@ class AICUP_ImageFolder(ImageFolder):
             target = self.target_transform(target, self.num_of_classes)
 
         return sample, target
+

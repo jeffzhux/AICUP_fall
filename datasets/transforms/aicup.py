@@ -1,3 +1,4 @@
+from typing import Tuple
 from torchvision import transforms
 import torchvision.transforms as T
 from PIL import ImageDraw
@@ -46,11 +47,22 @@ def base():
     ])
     return transform
 
-def baseWithAim():
+def baseOnAim():
     transform = transforms.Compose([
         T.RandomApply([randomAim()], p=1),
         T.RandomResizedCrop((224, 224)),
         T.RandomHorizontalFlip(),
+        T.ToTensor(),
+        T.Normalize(imagenet_normalize['mean'], imagenet_normalize['std'])
+    ])
+    return transform
+
+def baseOnImageNet(size: Tuple = (224,224),):
+
+    transform = transforms.Compose([
+        T.RandomResizedCrop(size),
+        T.RandomHorizontalFlip(),
+        T.AutoAugment(T.AutoAugmentPolicy.IMAGENET),
         T.ToTensor(),
         T.Normalize(imagenet_normalize['mean'], imagenet_normalize['std'])
     ])
