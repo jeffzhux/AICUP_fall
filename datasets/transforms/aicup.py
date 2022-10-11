@@ -39,15 +39,15 @@ class randomAim(object):
             dr.line((x,y+r*3/4,x,y+r*5/4), fill='yellow', width=line_width)
         return img
 
-def base():
+def base(size: Tuple = (224,224)):
     transform = transforms.Compose([
-        T.Resize((224, 224)),
+        T.Resize(size),
         T.ToTensor(),
         T.Normalize(imagenet_normalize['mean'], imagenet_normalize['std'])
     ])
     return transform
 
-def baseOnAim():
+def baseOnAim(size: Tuple = (224,224)):
     transform = transforms.Compose([
         T.RandomApply([randomAim()], p=1),
         T.RandomResizedCrop((224, 224)),
@@ -57,7 +57,7 @@ def baseOnAim():
     ])
     return transform
 
-def baseOnImageNet(size: Tuple = (224,224),):
+def baseOnImageNet(size: Tuple = (224,224)):
 
     transform = transforms.Compose([
         T.RandomResizedCrop(size),

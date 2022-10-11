@@ -1,10 +1,11 @@
-from turtle import forward
+from cProfile import label
 from typing import List
-from matplotlib import image
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
+
+import torchvision.transforms as T
 
 class CollateFunction(nn.Module):
     def __init__(self):
@@ -53,12 +54,11 @@ class TestTimeCollate(nn.Module):
     '''
     def __init__(self):
         super(TestTimeCollate, self).__init__()
-       
+        
 
     def forward(self, batch: List[tuple]):
-        images, labels = zip(*batch)
-        
-        # images = torch.stack(images)
-        # labels = torch.tensor(labels)
-        print(type(images))
+        images, labels =  map(list, zip(*batch))
+        images = torch.cat(images)
+        labels = torch.tensor(labels)
+
         return images, labels

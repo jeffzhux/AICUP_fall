@@ -1,20 +1,22 @@
-import enum
 import os
 import platform
 import argparse
 import time
 
 import torch
+import torch.nn as nn
 import torch.distributed as dist
 import torch.multiprocessing as mp
+import torch.backends.cudnn as cudnn
 from torch.utils.tensorboard import SummaryWriter
 
 from datasets.build import build_dataset
 from datasets.collates.build import build_collate
+from models.build import build_model
 from utils.config import Config
 from utils.util import AverageMeter, TrackMeter, accuracy, adjust_learning_rate, format_time, set_seed
 from utils.build import build_logger
-
+from utils.test_time_augmentation import TestTimeAugmentation
 
 def get_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
@@ -45,6 +47,44 @@ def get_config(args: argparse.Namespace) -> Config:
 
     return cfg
 
+def load_weights(
+    ckpt_path: str,
+    model: nn.Module) -> None:
+
+    # load checkpoint 
+    print(f"==> Loading Checkpoint {ckpt_path}")
+    assert os.path.isfile(ckpt_path), 'file is not exist'
+    ckpt = torch.load(ckpt_path, map_location='cuda')
+
+    model.load_state_dict(ckpt['model_state'])
+
+@torch.no_grad()
+def test(model, dataloader, cfg, logger):
+    tta = TestTimeAugmentation(cfg.test_time_augmentation)
+    pred = []
+    target = []
+
+    for idx, (images, labels) in enumerate(dataloader):
+        images = images.float().cuda()
+        labels = labels.cuda()
+
+        # forward
+        logits = model(images)
+        logits = tta(logits)
+        
+        pred.append(logits)
+        target.append(labels)
+
+    pred = torch.cat(pred)
+    target = torch.cat(target)
+
+    acc1, acc5 = accuracy(pred, target, topk=(1, 5))
+    acc1, acc5 = acc1.item(), acc5.item()
+    if logger is not None:
+        logger.info(f'Acc@1: {acc1:.3f}, '
+                    f'Acc@5: {acc5:.3f}')
+
+
 def main_worker(rank, world_size, cfg):
     print(f'==> start rank: {rank}')
 
@@ -62,8 +102,8 @@ def main_worker(rank, world_size, cfg):
 
     logger, writer = None, None
     if rank == 0:
-        writer = SummaryWriter(log_dir=os.path.join(cfg.work_dir, 'tensorboard'))
-        logger = build_logger(cfg.work_dir, 'train')
+        # writer = SummaryWriter(log_dir=os.path.join(cfg.work_dir, 'tensorboard'))
+        logger = build_logger(cfg.work_dir, 'test')
 
     bsz_gpu = int(cfg.batch_size / cfg.world_size)
     print('batch_size per gpu:', bsz_gpu)
@@ -79,9 +119,20 @@ def main_worker(rank, world_size, cfg):
         drop_last = False
     )
 
-    for idx, (imgs, labels) in enumerate(test_loader):
-        # print(type(imgs))
-        pass
+    model = build_model(cfg.model)
+    model.cuda()
+    model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[cfg.local_rank])
+    
+    if cfg.load:
+        load_weights(cfg.load, model)
+
+    cudnn.benchmark = True
+    
+    print(f"==> Start testing ....")
+    model.eval()
+
+    test(model, test_loader, cfg, logger)
+    
 def main():
     args = get_args()
     cfg = get_config(args)

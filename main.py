@@ -47,7 +47,7 @@ def get_config(args: argparse.Namespace) -> Config:
 
     return cfg
 
-def load_weights(ckpt_path, model, optimizer, resume=True) -> None:
+def load_weights(ckpt_path, model, optimizer, resume=True) -> int:
     # load checkpoint
     print("==> Loading checkpoint '{}'".format(ckpt_path))
     assert os.path.isfile(ckpt_path)

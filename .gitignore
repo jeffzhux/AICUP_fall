@@ -3,6 +3,7 @@
 
 #實驗記錄
 cifar10_data/train
+test_experiment/
 experiment/
 data/
 data_original/
