@@ -10,6 +10,7 @@ from datasets.collates import TestTimeCollate
 from datasets.transforms.aicup import baseOnImageNet
 from models.build import build_model
 
+from utils.test_time_augmentation import TestTimeAugmentation
 from utils.config import Config
 from utils.util import AverageMeter, TrackMeter, accuracy, adjust_learning_rate, format_time, set_seed
 
@@ -63,15 +64,15 @@ def load_weights(
     print(f"==> Loading Checkpoint {ckpt_path}")
     assert os.path.isfile(ckpt_path), 'file is not exist'
     ckpt = torch.load(ckpt_path, map_location='cuda')
-    for k, v in ckpt['model_state'].items():
-        # if 'module' not in k:
-        #     k = f'module.{k}'
-        # ckpt['model_state'][k] = v
-        print(k)
-    print('-------------------------')
-    for k, v in model.named_parameters():
-        print(k)
-    # model.load_state_dict(ckpt['model_state'])
+    # for k, v in ckpt['model_state'].items():
+    #     # if 'module' not in k:
+    #     #     k = f'module.{k}'
+    #     # ckpt['model_state'][k] = v
+    #     print(k)
+    # print('-------------------------')
+    # for k, v in model.named_parameters():
+    #     print(k)
+    model.load_state_dict(ckpt['model_state'])
     
 
 
@@ -89,13 +90,24 @@ if __name__ == '__main__':
     
     print(f"==> Start testing ....")
     model.eval()
+    tta = TestTimeAugmentation(cfg.test_time_augmentation)
+    pred = []
+    target = []
     with torch.no_grad():
         for idx, (images, labels) in enumerate(test_loader):
             images = images.float().cuda()
             labels = labels.cuda()
-            batch_size = labels.shape[0]
 
             # forward
             logits = model(images)
-
-            break
+            logits = tta(logits)
+            
+            pred.append(logits)
+            target.append(labels)
+            
+        pred = torch.cat(pred)
+        target = torch.cat(target)
+        
+        acc1, acc5 = accuracy(pred, target, topk=(1, 5))
+        acc1, acc5 = acc1.item(), acc5.item()
+        print(f'acc1 : {acc1}, acc5: {acc5}')

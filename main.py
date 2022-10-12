@@ -153,6 +153,7 @@ def valid(model, dataloader, criterion, optimizer, epoch, cfg, logger, writer):
 
     epoch_time = format_time(time.time() - end)
 
+    ''' save best
     if top1.avg > test_meter.max_val:
         model_path = os.path.join(cfg.work_dir, f'best_{cfg.cfgname}.pth')
         state_dict={
@@ -162,6 +163,7 @@ def valid(model, dataloader, criterion, optimizer, epoch, cfg, logger, writer):
             'epoch':epoch
         }
         torch.save(state_dict, model_path)
+    '''
 
     if logger is not None:
         logger.info(f'Epoch [{epoch}] - epoch_time: {epoch_time}, '

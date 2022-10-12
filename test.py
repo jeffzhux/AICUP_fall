@@ -14,7 +14,7 @@ from datasets.build import build_dataset
 from datasets.collates.build import build_collate
 from models.build import build_model
 from utils.config import Config
-from utils.util import AverageMeter, TrackMeter, accuracy, adjust_learning_rate, format_time, set_seed
+from utils.util import Metric, accuracy, set_seed
 from utils.build import build_logger
 from utils.test_time_augmentation import TestTimeAugmentation
 
@@ -63,7 +63,7 @@ def test(model, dataloader, cfg, logger):
     tta = TestTimeAugmentation(cfg.test_time_augmentation)
     pred = []
     target = []
-
+    metrix = Metric(cfg.num_classes)
     for idx, (images, labels) in enumerate(dataloader):
         images = images.float().cuda()
         labels = labels.cuda()
@@ -79,10 +79,20 @@ def test(model, dataloader, cfg, logger):
     target = torch.cat(target)
 
     acc1, acc5 = accuracy(pred, target, topk=(1, 5))
+    
+    metrix.update(pred, target)
+    recall = metrix.recall('none')
+    precision = metrix.precision('none')
+    print(metrix.accuracy('mean'))
+    print(recall)
+    print(precision)
+    print(2 * precision * recall / (precision+recall))
     acc1, acc5 = acc1.item(), acc5.item()
     if logger is not None:
         logger.info(f'Acc@1: {acc1:.3f}, '
-                    f'Acc@5: {acc5:.3f}')
+                    f'Acc@5: {acc5:.3f}, '
+                    f'recall: {recall.mean():.3f}, '
+                    f'precision: {precision.mean():.3f}')
 
 
 def main_worker(rank, world_size, cfg):
