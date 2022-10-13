@@ -8,6 +8,10 @@ class Metric:
         self.num_classes = num_classes
         self.y = []
         self.t = []
+        self.tp = None
+        self.fp = None
+        self.fn = None
+        self.tn = None
     def update(self, y, t):
         '''Update with batch outputs and labels.
         Args:
@@ -20,6 +24,10 @@ class Metric:
         
         self.y.append(y)
         self.t.append(t)
+        self.tp = None
+        self.fp = None
+        self.fn = None
+        self.tn = None
     def _process(self, y, t):
         '''Compute TP, FP, FN, TN.
         Args:
@@ -33,8 +41,7 @@ class Metric:
         fp = torch.empty(self.num_classes)
         fn = torch.empty(self.num_classes)
         tn = torch.empty(self.num_classes)
-        print(f'{y}')
-        print(f'{t}')
+
         for i in range(self.num_classes):
             tp[i] = ((y == i) & (t == i)).sum().item()
             fp[i] = ((y == i) & (t != i)).sum().item()
@@ -54,7 +61,7 @@ class Metric:
         assert(reduction in ['none', 'mean'])
         y = torch.cat(self.y, 0)
         t = torch.cat(self.t, 0)
-        tp, fp, fn, tn = self._process(y, t)
+        tp, fp, fn, tn = self.tp, self.fp, self.fn, self.tn if self.tp else self._process(y, t)
         if reduction == 'none':
             acc = tp / (tp + fn)
         else:
@@ -73,7 +80,7 @@ class Metric:
         assert(reduction in ['none', 'mean'])
         y = torch.cat(self.y, 0)
         t = torch.cat(self.t, 0)
-        tp, fp, fn, tn = self._process(y, t)
+        tp, fp, fn, tn = self.tp, self.fp, self.fn, self.tn if self.tp else self._process(y, t)
         recall = tp / (tp + fn)
         recall[torch.isnan(recall)] = 0
         if reduction == 'mean':
@@ -92,7 +99,7 @@ class Metric:
         assert(reduction in ['none', 'mean'])
         y = torch.cat(self.y, 0)
         t = torch.cat(self.t, 0)
-        tp, fp, fn, tn = self._process(y, t)
+        tp, fp, fn, tn = self.tp, self.fp, self.fn, self.tn if self.tp else self._process(y, t)
         prec = tp / (tp + fp)
         prec[torch.isnan(prec)] = 0
         if reduction == 'mean':
