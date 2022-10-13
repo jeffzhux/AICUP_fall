@@ -14,23 +14,16 @@ data = dict(
         root=f'{data_root}/train',
         type = 'AICUP_ImageFolder',
         transform = dict(
-            type='baseOnAim'
+            type='baseOnImageNet'
         )
     ),
     vaild = dict(
-        root=f'{data_root}/valid',
-        type = 'AICUP_ImageFolder',
-        transform = dict(
-            type='base'
-        )
-    ),
-    test = dict(
         root=f'{data_root}/test',
         type = 'AICUP_ImageFolder',
         transform = dict(
             type='base'
         )
-    ),
+    )
 )
 
 # model
@@ -49,8 +42,8 @@ loss = dict(
     type = 'CrossEntropyLoss'
 )
 #train
-epochs = 1
-batch_size = 16 #128
+epochs = 350
+batch_size = 128
 
 # optimizer
 lr = 0.001
@@ -74,8 +67,8 @@ lr_cfg = dict(  # passed to adjust_learning_rate(cfg=lr_cfg)
 
 
 #log & save
-log_interval = 20
-save_interval = 5
+log_interval = 100
+save_interval = 50
 work_dir = './experiment/efficient'
 port = 10001
 resume = None # (路徑) 從中斷的地方開始 train
