@@ -5,23 +5,31 @@ import glob
 from PIL import Image
 import pandas as pd
 import math
-data_path = './dataset/*'
-center_file = './training/tag_locCoor.csv'
-TARGET_W = 512 # 目標寬度 +1 
+data_path = './data_public_test/*'
+target_data_path = './data/ID/test'
+answer_file = './training/submission_example_public.csv'
+center_file = './training/tag_loccoor_public_utf8.csv'
+
+TARGET_W = 512 # 目標寬度 +1
 TARGET_H = 512 # 目標長度 +1
 
-df = pd.read_csv(center_file, encoding='ANSI')
+df_center = pd.read_csv(center_file, encoding='utf8')
+df_answer = pd.read_csv(answer_file)
+df_answer.rename({'filename':'Img'}, axis='columns', inplace=True)
+
+df = pd.merge(df_center, df_answer, on='Img', how='inner')
+
+# create folder
+classes_name = df['label'].unique()
+for i in classes_name:
+    classes_folder = f'{target_data_path}/{i}'
+    if not os.path.exists(classes_folder):
+        os.makedirs(classes_folder)
 
 for file_path in glob.glob(data_path):
-
     zippedImgs = zipfile.ZipFile(file_path)
-
-    folder_path = f'./data/{zippedImgs.namelist()[0]}'
-    if not os.path.exists(folder_path):
-        os.makedirs(folder_path)
-
+    
     for file_in_zip in zippedImgs.namelist()[1:]:
-
         file_name = os.path.split(file_in_zip)[1]
 
         data = zippedImgs.read(file_in_zip)
@@ -55,8 +63,5 @@ for file_path in glob.glob(data_path):
             lower = H
         
         img = img.crop((left, upper, right, lower))
-        
         img = img.resize((TARGET_W, TARGET_H))
-        img.save(f'{folder_path}{file_name}')
-
-        
+        img.save(f'{target_data_path}/{df[df["Img"]==file_name]["label"].values[0]}/{file_name}')

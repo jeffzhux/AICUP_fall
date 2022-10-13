@@ -2,9 +2,9 @@
 seed = 2022
 
 #data
-data_root = './data'
+data_root = './data/ID'
 num_workers = 8
-num_classes = 33
+num_classes = 32
 data = dict(
     collate = dict(
         type = 'MixupCollate',
@@ -50,7 +50,7 @@ loss = dict(
 )
 #train
 epochs = 1
-batch_size = 16
+batch_size = 16 #128
 
 # optimizer
 lr = 0.001

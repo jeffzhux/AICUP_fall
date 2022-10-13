@@ -2,7 +2,7 @@
 seed = 2022
 
 #data
-data_root = './data'
+data_root = './data/ID'
 num_workers = 8
 data = dict(
     train = dict(
@@ -34,7 +34,7 @@ model = dict(
     backbone = dict(
         type = 'efficientnet_b0',
         weights = 'EfficientNet_B0_Weights.IMAGENET1K_V1',
-        num_classes = 33 
+        num_classes = 32
     )
     
 )
