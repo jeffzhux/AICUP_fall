@@ -47,6 +47,10 @@ class Metric:
             fp[i] = ((y == i) & (t != i)).sum().item()
             fn[i] = ((y != i) & (t == i)).sum().item()
             tn[i] = ((y != i) & (t != i)).sum().item()
+        self.tp = tp
+        self.fp = fp
+        self.fn = fn
+        self.tn = tn
         return tp, fp, fn, tn
 
     def accuracy(self, reduction='mean'):
@@ -61,7 +65,12 @@ class Metric:
         assert(reduction in ['none', 'mean'])
         y = torch.cat(self.y, 0)
         t = torch.cat(self.t, 0)
-        tp, fp, fn, tn = self.tp, self.fp, self.fn, self.tn if self.tp else self._process(y, t)
+
+        if self.tp is not None:
+            tp, fp, fn, tn = self.tp, self.fp, self.fn, self.tn
+        else:
+            tp, fp, fn, tn = self._process(y, t)
+
         if reduction == 'none':
             acc = tp / (tp + fn)
         else:
@@ -80,12 +89,38 @@ class Metric:
         assert(reduction in ['none', 'mean'])
         y = torch.cat(self.y, 0)
         t = torch.cat(self.t, 0)
-        tp, fp, fn, tn = self.tp, self.fp, self.fn, self.tn if self.tp else self._process(y, t)
+
+        if self.tp is not None:
+            tp, fp, fn, tn = self.tp, self.fp, self.fn, self.tn
+        else:
+            tp, fp, fn, tn = self._process(y, t)
+
         recall = tp / (tp + fn)
         recall[torch.isnan(recall)] = 0
         if reduction == 'mean':
             recall = recall.mean()
         return recall
+    def weighted_precision(self, threshold=0.7):
+        '''
+        F1-score of each class must be greater than threshold
+        (sum of precision of class which F1-score is greater than threshold * (TP + FN)) / Total Image Count
+
+        '''
+        if not self.y or not self.t:
+            return
+        y = torch.cat(self.y, 0)
+        t = torch.cat(self.t, 0)
+        num_of_image = t.size(0)
+
+        if self.tp is not None:
+            tp, fp, fn, tn = self.tp, self.fp, self.fn, self.tn
+        else:
+            tp, fp, fn, tn = self._process(y, t)
+
+        f1_score = self.f1_score('none')
+        precision = self.precision('none')
+        wp = torch.masked_select((precision * (tp+fn)), f1_score.ge(threshold)).sum() / num_of_image
+        return wp
 
     def precision(self, reduction='mean'):
         '''Precision = TP / (TP+FP).
@@ -99,7 +134,12 @@ class Metric:
         assert(reduction in ['none', 'mean'])
         y = torch.cat(self.y, 0)
         t = torch.cat(self.t, 0)
-        tp, fp, fn, tn = self.tp, self.fp, self.fn, self.tn if self.tp else self._process(y, t)
+        
+        if self.tp is not None:
+            tp, fp, fn, tn = self.tp, self.fp, self.fn, self.tn
+        else:
+            tp, fp, fn, tn = self._process(y, t)
+
         prec = tp / (tp + fp)
         prec[torch.isnan(prec)] = 0
         if reduction == 'mean':
@@ -113,7 +153,7 @@ class Metric:
           (tensor) precision.
         '''
         recall = self.recall(reduction)
-        precision = self.recall(reduction)
+        precision = self.precision(reduction)
         return 2 * precision * recall / (precision+recall)
 
     def confusion_matrix(self):
@@ -206,7 +246,7 @@ def _get_lr(cfg, step):
     lr = cfg.lr
     if cfg.type == 'Cosine':  # Cosine Anneal
         start_step = cfg.get('start_step', 1)
-        eta_min = lr * cfg.decay_rate
+        eta_min = max(lr * cfg["decay_rate"], cfg.get('min', 0))
         lr = eta_min + (lr - eta_min) * (1 + math.cos(math.pi * (step - start_step) / cfg.steps)) / 2
     elif cfg.type == 'MultiStep':  # MultiStep
         num_steps = np.sum(step > np.asarray(cfg.decay_steps))
@@ -271,3 +311,14 @@ def format_time(seconds):
     if f == '':
         f = '0ms'
     return f
+
+
+def get_activation(name, activation):
+    '''
+        >>> activation = {}
+        >>> for name, layer in model.named_modules():
+            layer.register_forward_hook(get_activation(name))
+    '''
+    def hook(model, input, output):
+        activation[name] = output.detach()
+    return hook

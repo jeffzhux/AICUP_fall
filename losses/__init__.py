@@ -1,2 +1,2 @@
 from losses.build import build_loss
-from losses.loss import MixUpLoss
+from losses.loss import MixUpLoss, EnergyLoss, OELoss

@@ -2,8 +2,8 @@ import os
 import random
 import shutil
 random.seed(2022)
-train_path = './data/train'
-valid_path = './data/valid'
+train_path = './data/OOD/train'
+valid_path = './data/OOD/valid'
 train, valid = 0.9, 0.1
 
 for dir in os.listdir(train_path):
@@ -23,7 +23,6 @@ for dir in os.listdir(train_path):
 
 
     for file in X_valid:
-
         source = rf'{train_path}/{dir}/{file}'
         target = rf'{valid_path}/{dir}/{file}'
 

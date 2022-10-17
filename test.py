@@ -17,6 +17,7 @@ from utils.config import Config
 from utils.util import Metric, accuracy, set_seed
 from utils.build import build_logger
 from utils.test_time_augmentation import TestTimeAugmentation
+from utils.ood import OutOfDistributionBase
 
 def get_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
@@ -47,9 +48,7 @@ def get_config(args: argparse.Namespace) -> Config:
 
     return cfg
 
-def load_weights(
-    ckpt_path: str,
-    model: nn.Module) -> None:
+def load_weights(ckpt_path: str, model: nn.Module) -> None:
 
     # load checkpoint 
     print(f"==> Loading Checkpoint {ckpt_path}")
@@ -59,10 +58,12 @@ def load_weights(
     model.load_state_dict(ckpt['model_state'])
 
 @torch.no_grad()
-def test(model, dataloader, cfg, logger):
-    tta = TestTimeAugmentation(cfg.test_time_augmentation)
+def test(model, dataloader, tta, ood, cfg, logger):
+    
+    
     pred = []
     target = []
+    score = []
     metrix = Metric(cfg.num_classes)
     for idx, (images, labels) in enumerate(dataloader):
         images = images.float().cuda()
@@ -71,22 +72,27 @@ def test(model, dataloader, cfg, logger):
         # forward
         logits = model(images)
         logits = tta(logits)
-        
+        t = ood(logits)
         pred.append(logits)
         target.append(labels)
-
-    pred = torch.cat(pred)
-    target = torch.cat(target)
-
+        score.append(t)
+        print('20221014 要記得拿掉 break')
+        break ########### 記得要拿掉
+    # pred = torch.cat(pred)
+    # target = torch.cat(target)
+    # score = torch.cat(score)
+    
+    # torch.save(pred, './pred.pt')
+    # torch.save(target, './target.pt')
+    torch.save(score, './score_ent_ood.pt')
     acc1, acc5 = accuracy(pred, target, topk=(1, 5))
     
+
     metrix.update(pred, target)
     recall = metrix.recall('none')
     precision = metrix.precision('none')
-    print(metrix.accuracy('mean'))
-    print(recall)
-    print(precision)
-    print(2 * precision * recall / (precision+recall))
+
+    print(metrix.weighted_precision())
     acc1, acc5 = acc1.item(), acc5.item()
     if logger is not None:
         logger.info(f'Acc@1: {acc1:.3f}, '
@@ -132,7 +138,8 @@ def main_worker(rank, world_size, cfg):
     model = build_model(cfg.model)
     model.cuda()
     model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[cfg.local_rank])
-    
+    tta = TestTimeAugmentation(cfg.test_time_augmentation)
+    ood = OutOfDistributionBase(cfg.out_of_distribution)
     if cfg.load:
         load_weights(cfg.load, model)
 
@@ -141,7 +148,7 @@ def main_worker(rank, world_size, cfg):
     print(f"==> Start testing ....")
     model.eval()
 
-    test(model, test_loader, cfg, logger)
+    test(model, test_loader, tta, ood, cfg, logger)
     
 def main():
     args = get_args()
