@@ -2,7 +2,7 @@
 seed = 2022
 
 #data
-num_workers = 8
+num_workers = 4
 num_classes = 32
 data_root = './data'
 data = dict(
@@ -43,11 +43,10 @@ model = dict(
 )
 # train
 epochs = 10
-batch_size = 128
+batch_size = 64
 # loss
 train_loss = dict(
-    type = 'OELoss',#'EnergyLoss',
-    batch_size = batch_size
+    type = 'OELoss',#'EnergyLoss'
 )
 valid_loss = dict(
     type = 'CrossEntropyLoss'
@@ -75,7 +74,7 @@ lr_cfg = dict(  # passed to adjust_learning_rate(cfg=lr_cfg)
 )
 
 # log & save
-log_interval = 1
+log_interval = 20
 save_interval = 5
 work_dir = './odd_experiment/energy'
 resume = None # (路徑) 從中斷的地方開始 train

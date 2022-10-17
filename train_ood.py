@@ -3,7 +3,6 @@ import os
 import platform
 import argparse
 
-from sklearn.utils import shuffle
 from datasets.collates.build import build_collate
 from utils.config import Config
 import time
@@ -68,7 +67,7 @@ def train(model, id_dataloader, ood_dataloader, criterion, optimizer, epoch, cfg
     losses = AverageMeter()
     top1 = AverageMeter()
 
-    num_iter = len(id_dataloader)
+    num_iter = min(len(id_dataloader), len(ood_dataloader))
     iter_end = time.time()
     epoch_end = time.time()
     for idx, ((imgs, labels),(out_imgs, _)) in enumerate(zip(id_dataloader, ood_dataloader)):
@@ -79,7 +78,7 @@ def train(model, id_dataloader, ood_dataloader, criterion, optimizer, epoch, cfg
         imgs = imgs.cuda(non_blocking=True)
         labels = labels.cuda(non_blocking=True)
 
-        batch_size = cfg.batch_size
+        batch_size = out_imgs.size(0)
 
         # measure data loading time
         data_time.update(time.time() - iter_end)
@@ -121,9 +120,9 @@ def train(model, id_dataloader, ood_dataloader, criterion, optimizer, epoch, cfg
     
     if writer is not None:
         lr = optimizer.param_groups[0]['lr']
-        writer.add_scalar('Train/lr', lr, epoch)
-        writer.add_scalar('Train/loss', losses.avg, epoch)
-        writer.add_scalar('Train/acc@1', top1.avg, epoch)
+        writer.add_scalar('Train_ood/lr', lr, epoch)
+        writer.add_scalar('Train_ood/loss', losses.avg, epoch)
+        writer.add_scalar('Train_ood/acc@1', top1.avg, epoch)
 
 def valid(model, dataloader, criterion, optimizer, epoch, cfg, logger, writer):
     model.eval() # 開啟batch normalization 和 dropout

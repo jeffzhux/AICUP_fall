@@ -26,20 +26,20 @@ class EnergyLoss(nn.Module):
             >>> loss = criterion(logits, labels)
     '''
 
-    def __init__(self, batch_size, m_in:int=-25, m_out:int=-7)-> None:
+    def __init__(self, m_in:int=-25, m_out:int=-7)-> None:
         super(EnergyLoss, self).__init__()
         
-        self.batch_size = batch_size
         self.m_in = m_in
         self.m_out = m_out
 
         self.criterion = nn.CrossEntropyLoss()
 
     def forward(self, pred, labels):
-        Ec_out = -torch.logsumexp(pred[self.batch_size:], dim=1)
-        Ec_in = -torch.logsumexp(pred[:self.batch_size], dim=1)
+        batch_size = labels.size(0)
+        Ec_out = -torch.logsumexp(pred[batch_size:], dim=1)
+        Ec_in = -torch.logsumexp(pred[:batch_size], dim=1)
 
-        loss = self.criterion(pred[:self.batch_size], labels)
+        loss = self.criterion(pred[:batch_size], labels)
         loss += 0.1 * (
             torch.pow((Ec_in - self.m_in).clamp_(0), 2).mean() + 
             torch.pow((self.m_out - Ec_out).clamp_(0), 2).mean()
@@ -60,18 +60,17 @@ class OELoss(nn.Module):
             >>> loss = criterion(logits, labels)
     '''
 
-    def __init__(self, batch_size)-> None:
+    def __init__(self)-> None:
         super(OELoss, self).__init__()
         
-        self.batch_size = batch_size
         self.criterion = nn.CrossEntropyLoss()
 
     def forward(self, pred, labels):
-        loss = self.criterion(pred[:self.batch_size], labels)
-        # print(f'first : {pred[self.batch_size:].mean(1)}')
-        # print(f'secon : {torch.logsumexp(pred[self.batch_size:], dim=1)}')
+        batch_size = labels.size(0)
+
+        loss = self.criterion(pred[:batch_size], labels)
         loss += 0.5 * -(
-            pred[self.batch_size:].mean(1) - 
-            torch.logsumexp(pred[self.batch_size:], dim=1)
+            pred[batch_size:].mean(1) - 
+            torch.logsumexp(pred[batch_size:], dim=1)
         ).mean()
         return loss
