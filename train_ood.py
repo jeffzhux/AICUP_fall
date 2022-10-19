@@ -2,7 +2,6 @@
 import os
 import platform
 import argparse
-
 from datasets.collates.build import build_collate
 from utils.config import Config
 import time
@@ -10,10 +9,9 @@ import torch.backends.cudnn as cudnn
 import torch.multiprocessing as mp
 import torch.distributed as dist
 import torch
-import torch.nn as nn
-from torch.utils.tensorboard import SummaryWriter
 
-from utils.util import AverageMeter, TrackMeter, accuracy, adjust_learning_rate, format_time, set_seed
+from torch.utils.tensorboard import SummaryWriter
+from utils.util import AverageMeter, TrackMeter, accuracy, group_accuracy, adjust_learning_rate, format_time, set_seed
 from utils.build import build_logger
 from datasets.build import build_dataset
 from models.build import build_model
@@ -49,17 +47,24 @@ def get_config(args: argparse.Namespace) -> Config:
 
     return cfg
 
-def load_weights(ckpt_path: str, model: nn.Module) -> None:
+def load_weights(ckpt_path, model, optimizer, resume=True) -> int:
     # load checkpoint
     print("==> Loading checkpoint '{}'".format(ckpt_path))
     assert os.path.isfile(ckpt_path)
     checkpoint = torch.load(ckpt_path, map_location='cuda')
 
-    model.load_state_dict(checkpoint['model_state'])
+    if resume:
+        # load model & optimizer
+        model.load_state_dict(checkpoint['model_state'])
+        optimizer.load_state_dict(checkpoint['optimizer_state'])
+    else:
+        raise ValueError
 
+    start_epoch = checkpoint['epoch'] + 1
+    print("Loaded. (epoch {})".format(checkpoint['epoch']))
+    return start_epoch
 
-
-def train(model, id_dataloader, ood_dataloader, criterion, optimizer, epoch, cfg, logger=None, writer=None):
+def train(model, dataloader, criterion, optimizer, epoch, cfg, logger=None, writer=None):
     model.train() # 開啟batch normalization 和 dropout
     
     batch_time = AverageMeter()
@@ -67,18 +72,15 @@ def train(model, id_dataloader, ood_dataloader, criterion, optimizer, epoch, cfg
     losses = AverageMeter()
     top1 = AverageMeter()
 
-    num_iter = min(len(id_dataloader), len(ood_dataloader))
+    num_iter = len(dataloader)
     iter_end = time.time()
     epoch_end = time.time()
-    for idx, ((imgs, labels),(out_imgs, _)) in enumerate(zip(id_dataloader, ood_dataloader)):
+    for idx, (imgs, labels) in enumerate(dataloader):
         
-        adjust_learning_rate(cfg.lr_cfg, optimizer, epoch*len(id_dataloader)+idx)
-
-        imgs = torch.cat((imgs, out_imgs), 0)
         imgs = imgs.cuda(non_blocking=True)
         labels = labels.cuda(non_blocking=True)
 
-        batch_size = out_imgs.size(0)
+        batch_size = imgs.size(0)
 
         # measure data loading time
         data_time.update(time.time() - iter_end)
@@ -89,9 +91,9 @@ def train(model, id_dataloader, ood_dataloader, criterion, optimizer, epoch, cfg
         losses.update(loss.item(), batch_size)
 
         # accurate
-        acc1, acc5 = accuracy(logits[:batch_size], labels, topk=(1,5))
+        acc1, acc5 = group_accuracy(logits, labels, cfg.group_list, topk=(1,5))
         top1.update(acc1.item(), batch_size)
-
+        
         # compute gradient and do SGD step
         optimizer.zero_grad()
         loss.backward()
@@ -120,9 +122,9 @@ def train(model, id_dataloader, ood_dataloader, criterion, optimizer, epoch, cfg
     
     if writer is not None:
         lr = optimizer.param_groups[0]['lr']
-        writer.add_scalar('Train_ood/lr', lr, epoch)
-        writer.add_scalar('Train_ood/loss', losses.avg, epoch)
-        writer.add_scalar('Train_ood/acc@1', top1.avg, epoch)
+        writer.add_scalar('Train/lr', lr, epoch)
+        writer.add_scalar('Train/loss', losses.avg, epoch)
+        writer.add_scalar('Train/acc@1', top1.avg, epoch)
 
 def valid(model, dataloader, criterion, optimizer, epoch, cfg, logger, writer):
     model.eval() # 開啟batch normalization 和 dropout
@@ -130,6 +132,7 @@ def valid(model, dataloader, criterion, optimizer, epoch, cfg, logger, writer):
     losses = AverageMeter()
     top1 = AverageMeter()
     top5 = AverageMeter()
+    test_meter = TrackMeter()
     end = time.time()
 
     with torch.no_grad():
@@ -141,7 +144,7 @@ def valid(model, dataloader, criterion, optimizer, epoch, cfg, logger, writer):
             # forward
             logits = model(images)
             loss = criterion(logits, targets)
-            acc1, acc5 = accuracy(logits, targets, topk=(1,5))
+            acc1, acc5 = group_accuracy(logits, targets, cfg.group_list, topk=(1,5))
 
             # update metric
             losses.update(loss.item(), batch_size)
@@ -192,44 +195,35 @@ def main_worker(rank, world_size, cfg):
     logger, writer = None, None
     if rank == 0:
         writer = SummaryWriter(log_dir=os.path.join(cfg.work_dir, 'tensorboard'))
-        logger = build_logger(cfg.work_dir, 'train_ood')
+        logger = build_logger(cfg.work_dir, 'train')
 
     bsz_gpu = int(cfg.batch_size / cfg.world_size)
     print('batch_size per gpu:', bsz_gpu)
     
     # build dataset
 
-    id_train_set =  build_dataset(cfg.data.id)
-    id_train_collate = build_collate(cfg.data.collate)
-    id_train_sampler = torch.utils.data.distributed.DistributedSampler(id_train_set, shuffle=True)
-    id_train_loader = torch.utils.data.DataLoader(
-        id_train_set,
+    train_set =  build_dataset(cfg.data.train)
+    train_collate = build_collate(cfg.data.collate)
+    train_sampler = torch.utils.data.distributed.DistributedSampler(train_set, shuffle=True)
+    train_loader = torch.utils.data.DataLoader(
+        train_set,
         batch_size=bsz_gpu,
         num_workers=cfg.num_workers,
-        collate_fn = id_train_collate,
+        collate_fn = train_collate,
         pin_memory=True,
-        sampler=id_train_sampler,
-        drop_last=True
-    )
-    ood_train_set =  build_dataset(cfg.data.ood)
-    ood_train_loader = torch.utils.data.DataLoader(
-        ood_train_set,
-        batch_size=bsz_gpu,
-        num_workers=cfg.num_workers,
-        shuffle=False,
-        pin_memory=True,
+        sampler=train_sampler,
         drop_last=True
     )
     valid_set = build_dataset(cfg.data.vaild)
+    valid_collate = build_collate(cfg.data.collate)
     valid_loader = torch.utils.data.DataLoader(
         valid_set,
         batch_size=bsz_gpu,
         num_workers=cfg.num_workers,
-        shuffle=False,
+        collate_fn = valid_collate,
         pin_memory=True,
         drop_last=True
     )
-    
     
     # build model
     model = build_model(cfg.model)
@@ -237,11 +231,9 @@ def main_worker(rank, world_size, cfg):
     model.cuda()
     #如果網路當中有不需要backward的find_unused_parameters 要設為 True
     model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[cfg.local_rank], find_unused_parameters=False)
-    if cfg.load:
-        load_weights(cfg.load, model)
+    
     # build criterion
-    train_criterion = build_loss(cfg.train_loss).cuda()
-    valid_criterion = build_loss(cfg.valid_loss).cuda()
+    criterion = build_loss(cfg.loss).cuda()
     # build optimizer
     optimizer = build_optimizer(cfg.optimizer, model.parameters())
 
@@ -253,12 +245,13 @@ def main_worker(rank, world_size, cfg):
 
     
     for epoch in range(start_epoch, cfg.epochs + 1):
-        id_train_sampler.set_epoch(epoch)
-        
+        train_sampler.set_epoch(epoch)
+        adjust_learning_rate(cfg.lr_cfg, optimizer, epoch)
+
         # train; all processes
-        train(model, id_train_loader, ood_train_loader, train_criterion, optimizer, epoch, cfg, logger, writer)
+        train(model, train_loader, criterion, optimizer, epoch, cfg, logger, writer)
         
-        valid(model, valid_loader, valid_criterion, optimizer, epoch, cfg, logger, writer)
+        valid(model, valid_loader, criterion, optimizer, epoch, cfg, logger, writer)
 
         # save ckpt; master process
         if rank == 0 and epoch % cfg.save_interval == 0:

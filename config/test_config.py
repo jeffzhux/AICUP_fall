@@ -11,22 +11,30 @@ test_time_augmentation = dict(
     sharpen = 0.5 # weight of original image
 )
 out_of_distribution = dict(
-    type='OutOfDistributionBase',
-    mode='entropy',
-    threshold=0.5
+    type='EnergyOOD',
+    #mode='softmax', #softmax entropy
+    temperature=1
 )
 data = dict(
     collate = dict(
         type = 'TestTimeCollate',
     ),
     test = dict(
-        root=f'{data_root}/ID/train',
+        root=f'{data_root}/OOD/valid',
         type = 'TestTimeAICUP_DataSet',
         transform = dict(
             type='baseOnImageNet'
         ),
         num_of_trans = test_time_augmentation['num_of_trans']
     ),
+    # ood_test = dict(
+    #     root=f'{data_root}/OOD/valid',
+    #     type = 'TestTimeAICUP_DataSet',
+    #     transform = dict(
+    #         type='baseOnImageNet'
+    #     ),
+    #     num_of_trans = test_time_augmentation['num_of_trans']
+    # ),
 )
 
 # model
@@ -43,6 +51,6 @@ batch_size = 16
 
 #log & save
 work_dir = './test_experiment/efficient'
-load = './experiment/efficient/20221013_130305/epoch_350.pth'
+load = './ood_experiment/20221017_131232/epoch_10.pth'
 port = 10001
 

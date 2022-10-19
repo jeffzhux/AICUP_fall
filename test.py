@@ -2,13 +2,14 @@ import os
 import platform
 import argparse
 import time
+from sklearn.utils import shuffle
 
 import torch
 import torch.nn as nn
 import torch.distributed as dist
 import torch.multiprocessing as mp
 import torch.backends.cudnn as cudnn
-from torch.utils.tensorboard import SummaryWriter
+from torch.utils.data import ConcatDataset
 
 from datasets.build import build_dataset
 from datasets.collates.build import build_collate
@@ -17,7 +18,7 @@ from utils.config import Config
 from utils.util import Metric, accuracy, set_seed
 from utils.build import build_logger
 from utils.test_time_augmentation import TestTimeAugmentation
-from utils.ood import OutOfDistributionBase
+from utils.ood import EnergyOOD
 
 def get_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
@@ -60,7 +61,6 @@ def load_weights(ckpt_path: str, model: nn.Module) -> None:
 @torch.no_grad()
 def test(model, dataloader, tta, ood, cfg, logger):
     
-    
     pred = []
     target = []
     score = []
@@ -76,15 +76,15 @@ def test(model, dataloader, tta, ood, cfg, logger):
         pred.append(logits)
         target.append(labels)
         score.append(t)
-        print('20221014 要記得拿掉 break')
-        break ########### 記得要拿掉
-    # pred = torch.cat(pred)
-    # target = torch.cat(target)
-    # score = torch.cat(score)
+        # print('20221014 要記得拿掉 break')
+        # break ########### 記得要拿掉
+    pred = torch.cat(pred)
+    target = torch.cat(target)
+    score = torch.cat(score)
     
     # torch.save(pred, './pred.pt')
     # torch.save(target, './target.pt')
-    torch.save(score, './score_ent_ood.pt')
+    # torch.save(score, './score_energy_ood.pt')
     acc1, acc5 = accuracy(pred, target, topk=(1, 5))
     
 
@@ -116,20 +116,23 @@ def main_worker(rank, world_size, cfg):
         dist.init_process_group(backend='nccl', init_method=f'tcp://localhost:{cfg.port}',
                             world_size=world_size, rank=rank)
 
-    logger, writer = None, None
+    logger = None
     if rank == 0:
-        # writer = SummaryWriter(log_dir=os.path.join(cfg.work_dir, 'tensorboard'))
         logger = build_logger(cfg.work_dir, 'test')
 
     bsz_gpu = int(cfg.batch_size / cfg.world_size)
     print('batch_size per gpu:', bsz_gpu)
 
     test_set = build_dataset(cfg.data.test)
+    if hasattr(cfg.data, 'ood_test'):
+        ood_test = build_dataset(cfg.data.ood_test)
+        test_set = ConcatDataset([test_set, ood_test])
     test_collate = build_collate(cfg.data.collate)
     test_loader = torch.utils.data.DataLoader(
         test_set,
         batch_size = bsz_gpu,
         num_workers = cfg.num_workers,
+        shuffle = False,
         collate_fn = test_collate,
         pin_memory = True,
         drop_last = False
@@ -139,7 +142,7 @@ def main_worker(rank, world_size, cfg):
     model.cuda()
     model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[cfg.local_rank])
     tta = TestTimeAugmentation(cfg.test_time_augmentation)
-    ood = OutOfDistributionBase(cfg.out_of_distribution)
+    ood = EnergyOOD(cfg.out_of_distribution)
     if cfg.load:
         load_weights(cfg.load, model)
 

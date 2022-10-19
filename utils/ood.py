@@ -21,4 +21,16 @@ class OutOfDistributionBase(nn.Module):
             return torch.special.entr(logits).sum(-1)
 
 
+class EnergyOOD(nn.Module):
+    def __init__(self, cfg:ConfigDict):
+        super(EnergyOOD, self).__init__()
+        self.t = cfg['temperature']
+    def forward(self, logits):
+        # print(logits.size())
+        
+        # print((self.t * torch.logsumexp(logits / self.t, dim=1)))
+        return (self.t * torch.logsumexp(logits / self.t, dim=1))
+       
+
+
 

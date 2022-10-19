@@ -9,5 +9,5 @@ data/
 data_public_train/
 data_public_test/
 training/
-odd_experiment/
+ood_experiment/
 log/
