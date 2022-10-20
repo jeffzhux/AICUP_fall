@@ -11,7 +11,7 @@ import torch.distributed as dist
 import torch
 
 from torch.utils.tensorboard import SummaryWriter
-from utils.util import AverageMeter, TrackMeter, accuracy, group_accuracy, adjust_learning_rate, format_time, set_seed
+from utils.util import AverageMeter, TrackMeter, accuracy, other_accuracy, adjust_learning_rate, format_time, set_seed
 from utils.build import build_logger
 from datasets.build import build_dataset
 from models.build import build_model
@@ -91,7 +91,7 @@ def train(model, dataloader, criterion, optimizer, epoch, cfg, logger=None, writ
         losses.update(loss.item(), batch_size)
 
         # accurate
-        acc1, acc5 = group_accuracy(logits, labels, cfg.group_list, topk=(1,5))
+        acc1, acc5 = accuracy(logits, labels, topk=(1,5))
         top1.update(acc1.item(), batch_size)
         
         # compute gradient and do SGD step
@@ -113,6 +113,7 @@ def train(model, dataloader, criterion, optimizer, epoch, cfg, logger=None, writ
                         f'loss(loss avg): {loss:.3f}({losses.avg:.3f}),  '
                         f'train_Acc@1: {top1.avg:.3f}  '
             )
+        
     if logger is not None: 
         now = time.time()
         epoch_time = format_time(now - epoch_end)
@@ -143,8 +144,9 @@ def valid(model, dataloader, criterion, optimizer, epoch, cfg, logger, writer):
 
             # forward
             logits = model(images)
+
             loss = criterion(logits, targets)
-            acc1, acc5 = group_accuracy(logits, targets, cfg.group_list, topk=(1,5))
+            acc1, acc5 = other_accuracy(logits, targets, topk=(1,5))
 
             # update metric
             losses.update(loss.item(), batch_size)
@@ -203,6 +205,7 @@ def main_worker(rank, world_size, cfg):
     # build dataset
 
     train_set =  build_dataset(cfg.data.train)
+    print(train_set.class_to_idx)
     train_collate = build_collate(cfg.data.collate)
     train_sampler = torch.utils.data.distributed.DistributedSampler(train_set, shuffle=True)
     train_loader = torch.utils.data.DataLoader(
@@ -215,12 +218,11 @@ def main_worker(rank, world_size, cfg):
         drop_last=True
     )
     valid_set = build_dataset(cfg.data.vaild)
-    valid_collate = build_collate(cfg.data.collate)
+    print(valid_set.class_to_idx)
     valid_loader = torch.utils.data.DataLoader(
         valid_set,
         batch_size=bsz_gpu,
         num_workers=cfg.num_workers,
-        collate_fn = valid_collate,
         pin_memory=True,
         drop_last=True
     )
@@ -249,10 +251,10 @@ def main_worker(rank, world_size, cfg):
         adjust_learning_rate(cfg.lr_cfg, optimizer, epoch)
 
         # train; all processes
-        train(model, train_loader, criterion, optimizer, epoch, cfg, logger, writer)
+        # train(model, train_loader, criterion, optimizer, epoch, cfg, logger, writer)
         
         valid(model, valid_loader, criterion, optimizer, epoch, cfg, logger, writer)
-
+        
         # save ckpt; master process
         if rank == 0 and epoch % cfg.save_interval == 0:
             model_path = os.path.join(cfg.work_dir, f'epoch_{epoch}.pth')

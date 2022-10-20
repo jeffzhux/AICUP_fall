@@ -62,14 +62,14 @@ class TestTimeCollate(nn.Module):
 
         return images, labels
 
-class GroupMixupCollate(nn.Module):
+class OtherMixupCollate(nn.Module):
     '''
         Returns mixed inputs, pairs of targets, and lambda
         Reference
         https://arxiv.org/pdf/1710.09412.pdf
     '''
     def __init__(self, num_classes, alpha=1.0):
-        super(GroupMixupCollate, self).__init__()
+        super(OtherMixupCollate, self).__init__()
         self.alpha = alpha
         self.num_classes = num_classes
 
@@ -87,5 +87,5 @@ class GroupMixupCollate(nn.Module):
         index = torch.randperm(batch_size)
         # index = np.random.permutation(batch_size)
         images = lam * images + (1 - lam) * images[index, :]
-        labels = lam * labels + (1 - lam) * labels[index]
+        labels = lam * labels + (1 - lam) * labels[index, :]
         return images, labels

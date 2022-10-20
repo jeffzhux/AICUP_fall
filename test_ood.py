@@ -5,6 +5,7 @@ import time
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import torch.distributed as dist
 import torch.multiprocessing as mp
 import torch.backends.cudnn as cudnn
@@ -16,7 +17,6 @@ from utils.config import Config
 from utils.util import Metric, accuracy, set_seed
 from utils.build import build_logger
 from utils.test_time_augmentation import TestTimeAugmentation
-from utils.ood import EnergyOOD
 
 def get_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
@@ -56,47 +56,96 @@ def load_weights(ckpt_path: str, model: nn.Module) -> None:
 
     model.load_state_dict(ckpt['model_state'])
 
+def split_class_other(pred, group_list):
+    def get_group_slice(group_list):
+        start = 0
+        slice_group = []
+        for i in group_list:
+            end = start + len(i) + 1
+            slice_group.append([start, end])
+            start = end
+        return slice_group
+
+    slice_group = get_group_slice(group_list)
+
+    classes_group_softmax = []
+    others_group_softmax = []
+    for slice in slice_group:
+        group_logit = pred[:, slice[0]:slice[1]]
+
+        group_softmax = F.softmax(group_logit, dim=1) 
+        classes_group_softmax.append(group_softmax[:,:-1])# disregard others category
+        # others_group_softmax.append(torch.special.entr(group_softmax[:,:-1]))
+        others_group_softmax.append(group_softmax[:,-1:]) # others categorys
+
+
+    classes_group_softmax = torch.cat(classes_group_softmax, dim=1)
+    others_group_softmax = torch.cat(others_group_softmax, dim=1)
+
+    return classes_group_softmax, others_group_softmax
+
+
 @torch.no_grad()
-def test(model, dataloader, tta, ood, cfg, logger):
+def iterate_data(model, dataloader, tta, cfg):
     
-    pred = []
+    pred_class = []
+    pred_other = []
     target = []
-    score = []
-    metrix = Metric(cfg.num_classes)
+    
     for idx, (images, labels) in enumerate(dataloader):
         images = images.float().cuda()
         labels = labels.cuda()
 
         # forward
         logits = model(images)
+        logits, other_logits = split_class_other(logits, cfg.group_list)
+
         logits = tta(logits)
-        t = ood(logits)
-        pred.append(logits)
+        other_logits = tta(other_logits)
+
+        pred_class.append(logits)
+        pred_other.append(other_logits)
         target.append(labels)
-        score.append(t)
         # print('20221014 要記得拿掉 break')
         # break ########### 記得要拿掉
-    pred = torch.cat(pred)
+
+    pred_class = torch.cat(pred_class)
+    pred_other = torch.cat(pred_other)
     target = torch.cat(target)
-    score = torch.cat(score)
-    
-    # torch.save(pred, './pred.pt')
-    # torch.save(target, './target.pt')
-    # torch.save(score, './score_energy_ood.pt')
-    acc1, acc5 = accuracy(pred, target, topk=(1, 5))
-    
 
-    metrix.update(pred, target)
-    recall = metrix.recall('none')
-    precision = metrix.precision('none')
+    return pred_class, pred_other, target
 
-    print(metrix.weighted_precision())
-    acc1, acc5 = acc1.item(), acc5.item()
-    if logger is not None:
-        logger.info(f'Acc@1: {acc1:.3f}, '
-                    f'Acc@5: {acc5:.3f}, '
-                    f'recall: {recall.mean():.3f}, '
-                    f'precision: {precision.mean():.3f}')
+@torch.no_grad()
+def run_eval(model, id_test_loader, ood_test_loader, tta, cfg):
+    in_pred_class, in_pred_other, in_target = iterate_data(model, id_test_loader, tta, cfg)
+    # out_pred_class, out_pred_other, out_target = iterate_data(model, ood_test_loader, tta, cfg)
+    
+    # out_target += 32
+
+    # in_num, out_num = in_pred_class.size(0), out_pred_class.size(0)
+    # pred_class = torch.cat((in_pred_class, out_pred_class))
+    # pred_other = torch.cat((in_pred_other, out_pred_other))
+    # target = torch.cat((in_target, out_target))
+
+    # ood_score, _ = torch.max(-pred_other, dim=1)
+
+    # pred_class =
+    # in_score = mos(pred_other)
+       
+    acc1, acc5 = accuracy(in_pred_class, in_target, topk=(1, 5))
+    print(acc1)
+    # metrix = Metric(cfg.num_classes)
+    # metrix.update(pred_class, target)
+    # recall = metrix.recall('none')
+    # precision = metrix.precision('none')
+
+    # # print(metrix.weighted_precision())
+    # acc1, acc5 = acc1.item(), acc5.item()
+    # if logger is not None:
+    #     logger.info(f'Acc@1: {acc1:.3f}, '
+    #                 f'Acc@5: {acc5:.3f}, '
+    #                 f'recall: {recall.mean():.3f}, '
+    #                 f'precision: {precision.mean():.3f}')
 
 
 def main_worker(rank, world_size, cfg):
@@ -121,14 +170,26 @@ def main_worker(rank, world_size, cfg):
     bsz_gpu = int(cfg.batch_size / cfg.world_size)
     print('batch_size per gpu:', bsz_gpu)
 
-    test_set = build_dataset(cfg.data.test)
-    test_collate = build_collate(cfg.data.collate)
-    test_loader = torch.utils.data.DataLoader(
-        test_set,
+    id_test_set = build_dataset(cfg.data.id_test)
+    id_test_collate = build_collate(cfg.data.collate)
+    id_test_loader = torch.utils.data.DataLoader(
+        id_test_set,
         batch_size = bsz_gpu,
         num_workers = cfg.num_workers,
         shuffle = False,
-        collate_fn = test_collate,
+        collate_fn = id_test_collate,
+        pin_memory = True,
+        drop_last = False
+    )
+
+    ood_test_set = build_dataset(cfg.data.ood_test)
+    ood_test_collate = build_collate(cfg.data.collate)
+    ood_test_loader = torch.utils.data.DataLoader(
+        ood_test_set,
+        batch_size = bsz_gpu,
+        num_workers = cfg.num_workers,
+        shuffle = False,
+        collate_fn = ood_test_collate,
         pin_memory = True,
         drop_last = False
     )
@@ -137,7 +198,6 @@ def main_worker(rank, world_size, cfg):
     model.cuda()
     model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[cfg.local_rank])
     tta = TestTimeAugmentation(cfg.test_time_augmentation)
-    ood = EnergyOOD(cfg.out_of_distribution)
     if cfg.load:
         load_weights(cfg.load, model)
 
@@ -145,9 +205,14 @@ def main_worker(rank, world_size, cfg):
     
     print(f"==> Start testing ....")
     model.eval()
+    run_eval(model, id_test_loader, ood_test_loader, tta, cfg)
+    # out_pred_class, out_pred_other, out_target = iterate_data(model, ood_test_loader, tta, cfg)
+    # in_pred_class, in_pred_other, in_target = iterate_data(model, id_test_loader, tta, cfg)
 
-    test(model, test_loader, tta, ood, cfg, logger)
+    # id_score, _ = torch.min(in_pred_other, dim=1)
     
+    # id_score = torch.special.entr(in_pred_other).sum(-1)
+    # torch.save(id_score, './id_score.pt')
 def main():
     args = get_args()
     cfg = get_config(args)

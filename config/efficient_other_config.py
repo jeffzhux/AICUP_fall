@@ -3,34 +3,32 @@ seed = 2022
 
 #data
 data_root = './data/ID'
-group_list = [
-    ['asparagus', 'onion', 'greenhouse', 'chinesecabbage', 'roseapple', 'passionfruit'],
-    ['sesbania', 'lemon', 'litchi', 'chinesechives', 'pennisetum', 'longan', 'cauliflower', 'lettuce', 'loofah', 'custardapple', 'pear'],
-    ['greenonion', 'papaya', 'mango', 'betel', 'bambooshoots', 'taro', 'waterbamboo', 'grape', 'kale', 'sweetpotato', 'broccoli', 'redbeans', 'soybeans', 'sunhemp', 'tea']
-]
-group_num = 3
 num_workers = 8
 num_classes = 32
 data = dict(
     collate = dict(
-        type = 'GroupMixupCollate',
+        type = 'OtherMixupCollate',
         num_classes = num_classes
     ),
     train = dict(
         root=f'{data_root}/train',
-        type = 'ImageFolderWithGroup',
+        type = 'ImageFolderWithOther',
         transform = dict(
             type='baseOnImageNet'
         ),
-        group_list = group_list
+        target_transform = dict(
+            type='otherOneHotTransform'
+        )
     ),
     vaild = dict(
         root=f'{data_root}/valid',
-        type = 'ImageFolderWithGroup',
+        type = 'ImageFolderWithOther',
         transform = dict(
             type='base'
         ),
-        group_list = group_list
+        target_transform = dict(
+            type='otherOneHotTransform'
+        )
     )
 )
 
@@ -40,15 +38,14 @@ model = dict(
     backbone = dict(
         type = 'efficientnet_b0',
         weights = 'EfficientNet_B0_Weights.IMAGENET1K_V1',
-        num_classes = num_classes + group_num
+        num_classes = num_classes 
     )
     
 )
 
 # loss
 loss = dict(
-    type = 'GroupMixUpLoss',
-    group_list = group_list
+    type = 'CrossEntropyLoss'
 )
 #train
 epochs = 1
@@ -77,8 +74,8 @@ lr_cfg = dict(  # passed to adjust_learning_rate(cfg=lr_cfg)
 
 #log & save
 log_interval = 100
-save_interval = 50
-work_dir = './ood_experiment/efficient'
+save_interval = 5
+work_dir = './experiment/ood_experiment/efficient'
 port = 10001
 resume = None # (路徑) 從中斷的地方開始 train
 #load = None # (路徑) 載入訓練好的模型 test
