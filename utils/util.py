@@ -243,36 +243,19 @@ def accuracy(output, target, topk=(1,)):
                 res.append(correct.sum().mul_(100.0 / target.sum()))
         return res
 
-def group_accuracy(pred, target, group_list, topk=(1,)):
+def other_accuracy(pred, target, topk=(1,)):
 
-    def get_group_slice(group_list):
-        start = 0
-        slice_group = []
-        for i in group_list:
-            end = start + len(i) + 1
-            slice_group.append([start, end])
-            start = end
-        return slice_group
+    pred_softmax = F.softmax(pred, dim=1) # do softmax
+    pred_score = torch.special.entr(pred_softmax).sum(-1) # do entropy
+    others = torch.where(pred_score > 2.3, 1, 0).view(-1, 1)
+    pred_softmax = torch.cat((pred_softmax, others), dim=-1)
 
-    slice_group = get_group_slice(group_list)
-
-    all_group_softmax = []
-    labels = [] # disregard others category
-    for slice in slice_group:
-        group_logit = pred[:, slice[0]:slice[1]]
-        labels.append(target[:, slice[0]:slice[1]-1])
-
-        group_softmax = F.softmax(group_logit, dim=1) 
-        all_group_softmax.append(group_softmax[:,:-1])# disregard others category
-        
+    target_score = torch.special.entr(target).sum(-1) # do entropy
+    target_others = torch.where(target_score > 2.3, 1, 0).view(-1, 1)
+    target = torch.cat((target, target_others), dim=-1)
     
-    all_group_softmax = torch.cat(all_group_softmax, dim=1)
-        
-    labels = torch.cat(labels, dim=1)
-    _, gt_class = torch.max(labels, dim=1)
+    return accuracy(pred_softmax, target, topk)
 
-
-    return accuracy(all_group_softmax, gt_class, topk)
     
 
 def _get_lr(cfg, step):

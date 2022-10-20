@@ -128,7 +128,7 @@ class TestTimeAICUP_DataSet(ImageFolder):
         return sample, target
 
 
-class ImageFolderWithGroup(ImageFolder):
+class ImageFolderWithOther(ImageFolder):
     """A generic data loader where the images are arranged in this way by default: ::
 
         root/dog/xxx.png
@@ -160,42 +160,25 @@ class ImageFolderWithGroup(ImageFolder):
     def __init__(
         self,
         root: str,
-        group_list:list = None,
         transform: Optional[Callable] = None,
         target_transform: Optional[Callable] = None
     ):
-        self.group_list = group_list
         super().__init__(root, transform=transform, target_transform=target_transform)
-
-        self.num_of_group = len(group_list)
-        self.num_of_classes = len(self.classes)  + len(self.group_list)
+        self.num_of_classes = len(self.classes)
         
-
     def find_classes(self, directory: str) -> Tuple[List[str], Dict[str, int]]:
-        
-        classes = sorted(entry.name for entry in os.scandir(directory) if entry.is_dir())
+        """Finds the class folders in a dataset.
+
+        See :class:`DatasetFolder` for details.
+        """
+        classes = sorted(entry.name for entry in os.scandir(directory) if entry.is_dir() and entry.name != 'others')
+        classes.append('others')
         if not classes:
             raise FileNotFoundError(f"Couldn't find any class folder in {directory}.")
-        
-        class_to_idx = {cls_name: i for i, cls_name in enumerate(classes)}
 
-        if self.group_list != None:
-            self.group_list = [sorted(values) for values in self.group_list]
-            self.idx_to_otherIdx = {}
-            self.otherIdx = []
-            classes = []
-            class_to_idx = {}
-            
-            id = 0
-            for groups, values in enumerate(self.group_list):
-                classes += values
-                self.otherIdx.append(len(classes)+groups)
-                for cls_name in values:
-                    class_to_idx[cls_name] = id + groups
-                    self.idx_to_otherIdx[id + groups] = len(classes)+groups
-                    id += 1
-            
+        class_to_idx = {cls_name: i for i, cls_name in enumerate(classes)}
         return classes, class_to_idx
+            
 
     def __getitem__(self, index: int) -> Tuple[Any, Any]:
         """
@@ -213,8 +196,4 @@ class ImageFolderWithGroup(ImageFolder):
         if self.target_transform is not None:
             target = self.target_transform(target, self.num_of_classes)
 
-        label = torch.tensor(target)
-        label = F.one_hot(label, self.num_of_classes)
-        label[self.otherIdx] = 1
-        label[self.idx_to_otherIdx[target]] = 0
-        return sample, label
+        return sample, target
