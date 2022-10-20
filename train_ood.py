@@ -251,7 +251,7 @@ def main_worker(rank, world_size, cfg):
         adjust_learning_rate(cfg.lr_cfg, optimizer, epoch)
 
         # train; all processes
-        # train(model, train_loader, criterion, optimizer, epoch, cfg, logger, writer)
+        train(model, train_loader, criterion, optimizer, epoch, cfg, logger, writer)
         
         valid(model, valid_loader, criterion, optimizer, epoch, cfg, logger, writer)
         

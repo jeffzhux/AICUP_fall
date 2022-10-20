@@ -246,11 +246,12 @@ def accuracy(output, target, topk=(1,)):
 def other_accuracy(pred, target, topk=(1,)):
 
     pred_softmax = F.softmax(pred, dim=1) # do softmax
+    pred_score = (-pred_softmax * torch.log(pred_softmax)).sum(-1)
     pred_score = torch.special.entr(pred_softmax).sum(-1) # do entropy
     others = torch.where(pred_score > 2.3, 1, 0).view(-1, 1)
     pred_softmax = torch.cat((pred_softmax, others), dim=-1)
 
-    target_score = torch.special.entr(target).sum(-1) # do entropy
+    target_score = (-pred_softmax * torch.log(target)).sum(-1) # do entropy
     target_others = torch.where(target_score > 2.3, 1, 0).view(-1, 1)
     target = torch.cat((target, target_others), dim=-1)
     
