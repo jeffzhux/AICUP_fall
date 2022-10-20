@@ -48,8 +48,8 @@ loss = dict(
     type = 'CrossEntropyLoss'
 )
 #train
-epochs = 1
-batch_size = 16
+epochs = 50
+batch_size = 128
 
 # optimizer
 lr = 0.001
