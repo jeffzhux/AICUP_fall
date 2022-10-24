@@ -39,7 +39,6 @@ class MixupCollate(nn.Module):
             lam = 1
         batch_size = images.size(0)
         index = torch.randperm(batch_size)
-        # index = np.random.permutation(batch_size)
 
         images = lam * images + (1 - lam) * images[index, :]
         labels = lam * labels + (1 - lam) * labels[index]
@@ -74,10 +73,11 @@ class OtherMixupCollate(nn.Module):
         self.num_classes = num_classes
 
     def forward(self, batch: List[tuple]):
-        images, labels = map(list,zip(*batch))
+        images, labels, idx = map(list,zip(*batch))
         
         images = torch.stack(images)
-        labels = torch.stack(labels)
+        labels = torch.tensor(labels)
+        labels = F.one_hot(labels, self.num_classes)
 
         if self.alpha > 0:
             lam = np.random.beta(self.alpha, self.alpha)
@@ -85,7 +85,7 @@ class OtherMixupCollate(nn.Module):
             lam = 1
         batch_size = images.size(0)
         index = torch.randperm(batch_size)
-        # index = np.random.permutation(batch_size)
+
         images = lam * images + (1 - lam) * images[index, :]
-        labels = lam * labels + (1 - lam) * labels[index, :]
-        return images, labels
+        labels = lam * labels + (1 - lam) * labels[index]
+        return images, labels, idx

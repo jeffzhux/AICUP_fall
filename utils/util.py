@@ -241,23 +241,7 @@ def accuracy(output, target, topk=(1,)):
             for k in topk:
                 correct = (target * torch.zeros_like(target).scatter(1, pred[:, :k], 1)).float()
                 res.append(correct.sum().mul_(100.0 / target.sum()))
-        return res
-
-def other_accuracy(pred, target, topk=(1,)):
-
-    pred_softmax = F.softmax(pred, dim=1) # do softmax
-    pred_score = (-pred_softmax * torch.log(pred_softmax)).sum(-1)
-    pred_score = torch.special.entr(pred_softmax).sum(-1) # do entropy
-    others = torch.where(pred_score > 2.3, 1, 0).view(-1, 1)
-    pred_softmax = torch.cat((pred_softmax, others), dim=-1)
-
-    target_score = (-target * torch.log(target)).sum(-1) # do entropy
-    target_others = torch.where(target_score > 2.3, 1, 0).view(-1, 1)
-    target = torch.cat((target, target_others), dim=-1)
-
-    return accuracy(pred_softmax, target, topk)
-
-    
+        return res    
 
 def _get_lr(cfg, step):
     lr = cfg.lr

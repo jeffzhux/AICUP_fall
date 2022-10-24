@@ -1,35 +1,52 @@
 # init
 seed = 2022
+amp = True
 
 #data
-data_root = './data/ID'
+data_root = './data'
 num_workers = 8
-num_classes = 32
+num_classes = 37
 data = dict(
-    collate = dict(
+    collate_ID = dict(
+        type = 'MixupCollate',
+        num_classes = num_classes
+    ),
+    collate_OOD = dict(
         type = 'OtherMixupCollate',
         num_classes = num_classes
     ),
-    train = dict(
-        root=f'{data_root}/train',
-        type = 'ImageFolderWithOther',
+    train_ID = dict(
+        root=f'{data_root}/ID/train',
+        type = 'AICUP_ImageFolder',
         transform = dict(
             type='baseOnImageNet'
         ),
-        target_transform = dict(
-            type='otherOneHotTransform'
+    ),
+    train_OOD = dict(
+        root=f'{data_root}/OOD/train',
+        start_class = 32,
+        end_class = num_classes,
+        type = 'Others_ImageFolder',
+        transform = dict(
+            type='baseOnImageNet'
         )
     ),
-    vaild = dict(
-        root=f'{data_root}/valid',
-        type = 'ImageFolderWithOther',
+    valid_ID = dict(
+        root=f'{data_root}/ID/valid',
+        type = 'AICUP_ImageFolder',
         transform = dict(
             type='base'
-        ),
-        target_transform = dict(
-            type='otherOneHotTransform'
         )
-    )
+    ),
+    valid_OOD = dict(
+        root=f'{data_root}/OOD/valid',
+        start_class = 32,
+        end_class = num_classes,
+        type = 'Others_ImageFolder',
+        transform = dict(
+            type='baseOnImageNet'
+        )
+    ),
 )
 
 # model
@@ -45,14 +62,14 @@ model = dict(
 
 # loss
 loss = dict(
-    type = 'CrossEntropyLoss'
+    type = 'InOutLoss'
 )
 #train
-epochs = 50
-batch_size = 128
+epochs = 20
+batch_size = 256
 
 # optimizer
-lr = 0.001
+lr = 0.002
 optimizer = dict(
     type='Adam',
     lr = lr,
@@ -78,4 +95,4 @@ save_interval = 5
 work_dir = './experiment/ood_experiment/efficient'
 port = 10001
 resume = None # (路徑) 從中斷的地方開始 train
-#load = None # (路徑) 載入訓練好的模型 test
+load = './experiment/efficient/20221024_104633/epoch_50.pth' # (路徑) 載入訓練好的模型 test

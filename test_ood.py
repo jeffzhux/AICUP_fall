@@ -86,10 +86,10 @@ def run_eval(model, id_test_loader, ood_test_loader, tta, cfg):
     out_pred_class, out_target = iterate_data(model, ood_test_loader, tta, cfg)
     
     pred_class = torch.cat((in_pred_class, out_pred_class))
-    # pred_class = F.softmax(pred_class, dim=-1)
-    # score = torch.special.entr(pred_class).sum(-1)
-    # score = torch.where(score > 2.4, 1, 0).view(-1,1)
-    # pred_class = torch.cat((pred_class, score), dim=-1)
+    pred_class = F.softmax(pred_class, dim=-1)
+    score = torch.special.entr(pred_class).sum(-1)
+    score = torch.where(score > 2.7, 1, 0).view(-1,1)
+    pred_class = torch.cat((pred_class, score), dim=-1)
 
     out_target[:] = 32
     target = torch.cat((in_target, out_target))
@@ -192,10 +192,9 @@ def main_worker(rank, world_size, cfg):
     # out_pred_class, out_target = iterate_data(model, ood_test_loader, tta, cfg)
     # in_pred_class, in_target = iterate_data(model, id_test_loader, tta, cfg)
 
-    # id_score = torch.special.entr(F.softmax(out_pred_class, dim=-1)).sum(-1)
+    # id_score = torch.special.entr(F.softmax(in_pred_class, dim=-1)).sum(-1)
     
-    # id_score = torch.special.entr(in_pred_other).sum(-1)
-    # torch.save(id_score, './ood_score.pt')
+    # torch.save(id_score, './id_score.pt')
 def main():
     args = get_args()
     cfg = get_config(args)

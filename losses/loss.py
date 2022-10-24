@@ -11,27 +11,15 @@ class MixUpLoss(nn.Module):
         return lam * self.criterion(pred, y_a) + (1 - lam) * self.criterion(pred, y_b)
 
 
-class GroupMixUpLoss(nn.Module):
-    def __init__(self, group_list) -> None:
-        super(GroupMixUpLoss, self).__init__()
+class InOutLoss(nn.Module):
+    def __init__(self, lam=4) -> None:
+        super(InOutLoss, self).__init__()
         self.criterion = nn.CrossEntropyLoss()
-        self.group_slice = self.get_group_slice(group_list)
+        self.lam = lam
         
-    def get_group_slice(self, group_list):
-        start = 0
-        group_slice = []
-        for i in group_list:
-            end = start + len(i) + 1
-            group_slice.append([start, end])
-            start = end
-        return group_slice
 
-    def forward(self, pred, labels):
-        loss = 0
-        for slice in self.group_slice:
-            group_logit = pred[:, slice[0]:slice[1]]
-            group_label = labels[:, slice[0]:slice[1]]
-            loss += self.criterion(group_logit, group_label)
+    def forward(self, pred_in, labels_in, pred_out, lables_out):
+        loss = self.criterion(pred_in, labels_in) + self.lam * self.criterion(pred_out, lables_out)
         return loss
 
 class EnergyLoss(nn.Module):
