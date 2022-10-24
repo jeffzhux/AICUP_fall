@@ -2,6 +2,7 @@ import os
 import platform
 import argparse
 import time
+from sklearn.metrics import f1_score
 
 import torch
 import torch.nn as nn
@@ -56,40 +57,10 @@ def load_weights(ckpt_path: str, model: nn.Module) -> None:
 
     model.load_state_dict(ckpt['model_state'])
 
-def split_class_other(pred, group_list):
-    def get_group_slice(group_list):
-        start = 0
-        slice_group = []
-        for i in group_list:
-            end = start + len(i) + 1
-            slice_group.append([start, end])
-            start = end
-        return slice_group
-
-    slice_group = get_group_slice(group_list)
-
-    classes_group_softmax = []
-    others_group_softmax = []
-    for slice in slice_group:
-        group_logit = pred[:, slice[0]:slice[1]]
-
-        group_softmax = F.softmax(group_logit, dim=1) 
-        classes_group_softmax.append(group_softmax[:,:-1])# disregard others category
-        # others_group_softmax.append(torch.special.entr(group_softmax[:,:-1]))
-        others_group_softmax.append(group_softmax[:,-1:]) # others categorys
-
-
-    classes_group_softmax = torch.cat(classes_group_softmax, dim=1)
-    others_group_softmax = torch.cat(others_group_softmax, dim=1)
-
-    return classes_group_softmax, others_group_softmax
-
-
 @torch.no_grad()
 def iterate_data(model, dataloader, tta, cfg):
     
     pred_class = []
-    pred_other = []
     target = []
     
     for idx, (images, labels) in enumerate(dataloader):
@@ -98,30 +69,42 @@ def iterate_data(model, dataloader, tta, cfg):
 
         # forward
         logits = model(images)
-        logits, other_logits = split_class_other(logits, cfg.group_list)
-
         logits = tta(logits)
-        other_logits = tta(other_logits)
 
         pred_class.append(logits)
-        pred_other.append(other_logits)
         target.append(labels)
-        # print('20221014 要記得拿掉 break')
-        # break ########### 記得要拿掉
 
     pred_class = torch.cat(pred_class)
-    pred_other = torch.cat(pred_other)
     target = torch.cat(target)
 
-    return pred_class, pred_other, target
+    return pred_class, target
 
 @torch.no_grad()
 def run_eval(model, id_test_loader, ood_test_loader, tta, cfg):
-    in_pred_class, in_pred_other, in_target = iterate_data(model, id_test_loader, tta, cfg)
-    # out_pred_class, out_pred_other, out_target = iterate_data(model, ood_test_loader, tta, cfg)
     
-    # out_target += 32
+    in_pred_class, in_target = iterate_data(model, id_test_loader, tta, cfg)
+    out_pred_class, out_target = iterate_data(model, ood_test_loader, tta, cfg)
+    
+    pred_class = torch.cat((in_pred_class, out_pred_class))
+    # pred_class = F.softmax(pred_class, dim=-1)
+    # score = torch.special.entr(pred_class).sum(-1)
+    # score = torch.where(score > 2.4, 1, 0).view(-1,1)
+    # pred_class = torch.cat((pred_class, score), dim=-1)
 
+    out_target[:] = 32
+    target = torch.cat((in_target, out_target))
+
+    metrix = Metric(pred_class.size(-1))
+    metrix.update(pred_class, target)
+    recall = metrix.recall('none')
+    precision = metrix.precision('none')
+    f1_score = metrix.f1_score('none')
+    acc = metrix.accuracy('none')
+    
+    print(recall)
+    print(precision)
+    print(f1_score)
+    print(acc)
     # in_num, out_num = in_pred_class.size(0), out_pred_class.size(0)
     # pred_class = torch.cat((in_pred_class, out_pred_class))
     # pred_other = torch.cat((in_pred_other, out_pred_other))
@@ -132,8 +115,8 @@ def run_eval(model, id_test_loader, ood_test_loader, tta, cfg):
     # pred_class =
     # in_score = mos(pred_other)
        
-    acc1, acc5 = accuracy(in_pred_class, in_target, topk=(1, 5))
-    print(acc1)
+    # acc1, acc5 = accuracy(in_pred_class, in_target, topk=(1, 5))
+    # print(acc1)
     # metrix = Metric(cfg.num_classes)
     # metrix.update(pred_class, target)
     # recall = metrix.recall('none')
@@ -206,13 +189,13 @@ def main_worker(rank, world_size, cfg):
     print(f"==> Start testing ....")
     model.eval()
     run_eval(model, id_test_loader, ood_test_loader, tta, cfg)
-    # out_pred_class, out_pred_other, out_target = iterate_data(model, ood_test_loader, tta, cfg)
-    # in_pred_class, in_pred_other, in_target = iterate_data(model, id_test_loader, tta, cfg)
+    # out_pred_class, out_target = iterate_data(model, ood_test_loader, tta, cfg)
+    # in_pred_class, in_target = iterate_data(model, id_test_loader, tta, cfg)
 
-    # id_score, _ = torch.min(in_pred_other, dim=1)
+    # id_score = torch.special.entr(F.softmax(out_pred_class, dim=-1)).sum(-1)
     
     # id_score = torch.special.entr(in_pred_other).sum(-1)
-    # torch.save(id_score, './id_score.pt')
+    # torch.save(id_score, './ood_score.pt')
 def main():
     args = get_args()
     cfg = get_config(args)

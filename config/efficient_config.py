@@ -1,10 +1,11 @@
 # init
 seed = 2022
+amp = True
 
 #data
 data_root = './data/ID'
 num_workers = 8
-num_classes = 32
+num_classes = 37
 data = dict(
     collate = dict(
         type = 'MixupCollate',
@@ -42,8 +43,8 @@ loss = dict(
     type = 'CrossEntropyLoss'
 )
 #train
-epochs = 350
-batch_size = 128
+epochs = 50
+batch_size = 16#128
 
 # optimizer
 lr = 0.001

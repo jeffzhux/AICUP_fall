@@ -8,7 +8,9 @@ import time
 import torch.backends.cudnn as cudnn
 import torch.multiprocessing as mp
 import torch.distributed as dist
+from torch.cuda.amp import autocast, GradScaler
 import torch
+
 
 from torch.utils.tensorboard import SummaryWriter
 from utils.util import AverageMeter, TrackMeter, accuracy, adjust_learning_rate, format_time, set_seed
@@ -64,7 +66,7 @@ def load_weights(ckpt_path, model, optimizer, resume=True) -> int:
     print("Loaded. (epoch {})".format(checkpoint['epoch']))
     return start_epoch
 
-def train(model, dataloader, criterion, optimizer, epoch, cfg, logger=None, writer=None):
+def train(model, dataloader, criterion, optimizer, epoch, scaler, cfg, logger=None, writer=None):
     model.train() # 開啟batch normalization 和 dropout
     
     batch_time = AverageMeter()
@@ -86,8 +88,14 @@ def train(model, dataloader, criterion, optimizer, epoch, cfg, logger=None, writ
         data_time.update(time.time() - iter_end)
 
         # compute output
-        logits= model(imgs)
-        loss = criterion(logits, labels)
+        if scaler:
+            with autocast():
+                logits= model(imgs)
+                loss = criterion(logits, labels)
+        else:
+            logits= model(imgs)
+            loss = criterion(logits, labels)
+
         losses.update(loss.item(), batch_size)
 
         # accurate
@@ -96,9 +104,13 @@ def train(model, dataloader, criterion, optimizer, epoch, cfg, logger=None, writ
 
         # compute gradient and do SGD step
         optimizer.zero_grad()
-        loss.backward()
-        optimizer.step()
-
+        if scaler:
+            scaler.scale(loss).backward()
+            scaler.step(optimizer)
+            scaler.update()
+        else:
+            loss.backward()
+            optimizer.step()
         # measure elapsed time
         batch_time.update(time.time() - iter_end)
         iter_end = time.time()
@@ -241,13 +253,17 @@ def main_worker(rank, world_size, cfg):
 
     cudnn.benchmark = True
 
+    if cfg.amp:
+        scaler = GradScaler()
+    else:
+        scaler = None
     
     for epoch in range(start_epoch, cfg.epochs + 1):
         train_sampler.set_epoch(epoch)
         adjust_learning_rate(cfg.lr_cfg, optimizer, epoch)
 
         # train; all processes
-        train(model, train_loader, criterion, optimizer, epoch, cfg, logger, writer)
+        train(model, train_loader, criterion, optimizer, epoch, scaler, cfg, logger, writer)
         
         valid(model, valid_loader, criterion, optimizer, epoch, cfg, logger, writer)
 
