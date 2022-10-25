@@ -66,7 +66,7 @@ loss = dict(
 )
 #train
 epochs = 20
-batch_size = 256
+batch_size = 128    #256 cause out of memory & broke pipe error
 
 # optimizer
 lr = 0.002
@@ -92,7 +92,7 @@ lr_cfg = dict(  # passed to adjust_learning_rate(cfg=lr_cfg)
 #log & save
 log_interval = 100
 save_interval = 5
-work_dir = './experiment/ood_experiment/efficient'
+work_dir = './ood_experiment/ood_experiment/efficient'
 port = 10001
 resume = None # (路徑) 從中斷的地方開始 train
 load = './experiment/efficient/20221024_104633/epoch_50.pth' # (路徑) 載入訓練好的模型 test
