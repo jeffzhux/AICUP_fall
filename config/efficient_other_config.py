@@ -69,7 +69,7 @@ epochs = 20
 batch_size = 128    #256 cause out of memory & broke pipe error
 
 # optimizer
-lr = 0.002
+lr = 0.001
 optimizer = dict(
     type='Adam',
     lr = lr,
