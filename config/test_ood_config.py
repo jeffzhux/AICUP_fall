@@ -4,7 +4,7 @@ seed = 2022
 #data
 data_root = './data'
 num_workers = 8
-num_classes = 32
+num_classes = 37
 test_time_augmentation = dict(
     num_of_trans = 10,
     merge_mode = 'mean',
@@ -51,6 +51,8 @@ batch_size = 16
 
 #log & save
 work_dir = './test_experiment/efficient'
-load = './ood_experiment/efficient/20221022_111932/epoch_50.pth'#'./ood_experiment/efficient/20221020_154058/epoch_25.pth'
+load = './ood_experiment/efficient/20221024_234247/epoch_150.pth'
+# load = './experiment/efficient/20221024_104633/epoch_50.pth'
+
 port = 10001
 

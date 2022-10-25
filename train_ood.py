@@ -234,7 +234,7 @@ def main_worker(rank, world_size, cfg):
     train_id_sampler = torch.utils.data.distributed.DistributedSampler(train_id_set, shuffle=True)
     train_id_loader = torch.utils.data.DataLoader(
         train_id_set,
-        batch_size=int(bsz_gpu/4),
+        batch_size=int(bsz_gpu),
         num_workers=cfg.num_workers,
         collate_fn = train_id_collate,
         pin_memory=True,
@@ -258,7 +258,7 @@ def main_worker(rank, world_size, cfg):
     print(valid_id_set.class_to_idx)
     valid_id_loader = torch.utils.data.DataLoader(
         valid_id_set,
-        batch_size=int(bsz_gpu/4),
+        batch_size=int(bsz_gpu),
         num_workers=cfg.num_workers,
         pin_memory=True,
         drop_last=True

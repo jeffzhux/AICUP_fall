@@ -87,10 +87,9 @@ def run_eval(model, id_test_loader, ood_test_loader, tta, cfg):
     
     pred_class = torch.cat((in_pred_class, out_pred_class))
     pred_class = F.softmax(pred_class, dim=-1)
-    score = torch.special.entr(pred_class).sum(-1)
-    score = torch.where(score > 2.7, 1, 0).view(-1,1)
-    pred_class = torch.cat((pred_class, score), dim=-1)
-
+    max_socre, max_idx = torch.max(pred_class, dim=-1)
+    pred_class = pred_class[:, :33]
+    pred_class[max_idx,-1] = 1
     out_target[:] = 32
     target = torch.cat((in_target, out_target))
 
@@ -101,10 +100,11 @@ def run_eval(model, id_test_loader, ood_test_loader, tta, cfg):
     f1_score = metrix.f1_score('none')
     acc = metrix.accuracy('none')
     
+    print(acc)
     print(recall)
     print(precision)
     print(f1_score)
-    print(acc)
+    
     # in_num, out_num = in_pred_class.size(0), out_pred_class.size(0)
     # pred_class = torch.cat((in_pred_class, out_pred_class))
     # pred_other = torch.cat((in_pred_other, out_pred_other))
