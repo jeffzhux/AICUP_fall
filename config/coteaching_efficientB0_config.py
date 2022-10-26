@@ -5,7 +5,7 @@ amp = True
 #data
 data_root = './data/ID'
 num_workers = 8
-num_classes = 37
+num_classes = 32
 data = dict(
     collate = dict(
         type = 'MixupCollate',
@@ -31,20 +31,23 @@ data = dict(
 model = dict(
     type="EfficientNet_Base",
     backbone = dict(
-        type = 'efficientnet_b4',
-        weights = 'EfficientNet_B4_Weights.IMAGENET1K_V1',
+        type = 'efficientnet_b0',
+        weights = 'EfficientNet_B0_Weights.IMAGENET1K_V1',
         num_classes = num_classes 
     )
     
 )
 
-# loss
-loss = dict(
-    type = 'CrossEntropyLoss'
-)
 #train
 epochs = 1
 batch_size = 16#128
+
+# loss
+loss = dict(
+    type = 'CoTeachingLoss',
+    epochs = epochs
+)
+
 
 # optimizer
 lr = 0.001
@@ -62,15 +65,15 @@ lr_cfg = dict(  # passed to adjust_learning_rate(cfg=lr_cfg)
     decay_rate=0.1,
     # decay_steps=[100, 150]
     #start_step=0,
-    warmup_steps=10, # 100
-    warmup_from=lr * 0.1
+    warmup_steps=0, # 100
+    #warmup_from=1e-6
 )
 
 
 #log & save
 log_interval = 100
 save_interval = 50
-work_dir = './experiment/efficientB4'
+work_dir = './experiment/efficient_coteaching'
 port = 10001
 resume = None # (路徑) 從中斷的地方開始 train
 #load = None # (路徑) 載入訓練好的模型 test

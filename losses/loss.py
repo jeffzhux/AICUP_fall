@@ -1,6 +1,8 @@
+from cv2 import reduce
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+import numpy as np
 
 class MixUpLoss(nn.Module):
     def __init__(self) -> None:
@@ -22,7 +24,7 @@ class InOutLoss(nn.Module):
         loss = self.criterion(pred_in, labels_in) + self.lam * self.criterion(pred_out, lables_out)
         return loss
 
-class EnergyLoss(nn.Module):
+class CoTeachingLoss(nn.Module):
     '''
     Example : 
         >>> criterion = EngeyLoss(batch_size)
@@ -36,22 +38,27 @@ class EnergyLoss(nn.Module):
             >>> loss = criterion(logits, labels)
     '''
 
-    def __init__(self, m_in:int=-25, m_out:int=-7)-> None:
-        super(EnergyLoss, self).__init__()
-        
-        self.m_in = m_in
-        self.m_out = m_out
+    def __init__(self, epochs, forget_rate=0.2, exponent=1)-> None:
+        super(CoTeachingLoss, self).__init__()
 
-        self.criterion = nn.CrossEntropyLoss()
+        self.forget_rate = forget_rate
+        self.forget_rage_schedule = np.linspace(0, forget_rate**exponent, epochs)
 
-    def forward(self, pred, labels):
-        batch_size = labels.size(0)
-        Ec_out = -torch.logsumexp(pred[batch_size:], dim=1)
-        Ec_in = -torch.logsumexp(pred[:batch_size], dim=1)
+    def forward(self, y1, y2, t, epoch):
+        loss1 = F.cross_entropy(y1, t, reduction='none')
+        idx1_sorted = np.argsort(loss1.data.cpu())
+        loss1_sorted = loss1[idx1_sorted]
 
-        loss = self.criterion(pred[:batch_size], labels)
-        loss += 0.1 * (
-            torch.pow((Ec_in - self.m_in).clamp_(0), 2).mean() + 
-            torch.pow((self.m_out - Ec_out).clamp_(0), 2).mean()
-        )
-        return loss
+        loss2 = F.cross_entropy(y2, t, reduction='none')
+        idx2_sorted = np.argsort(loss2.data.cpu())
+
+        remeber_rate = 1-self.forget_rate
+        num_remember = int(remeber_rate * len(loss1_sorted))
+
+        idx1_update = idx1_sorted[:num_remember]
+        idx2_update = idx2_sorted[:num_remember]
+
+        loss1_update = F.cross_entropy(y1[idx2_update], t[idx2_update])
+        loss2_update = F.cross_entropy(y2[idx1_update], t[idx1_update])
+
+        return torch.sum(loss1_update) / num_remember, torch.sum(loss2_update) / num_remember

@@ -146,10 +146,6 @@ def main_worker(rank, world_size, cfg):
         dist.init_process_group(backend='nccl', init_method=f'tcp://localhost:{cfg.port}',
                             world_size=world_size, rank=rank)
 
-    logger = None
-    if rank == 0:
-        logger = build_logger(cfg.work_dir, 'test')
-
     bsz_gpu = int(cfg.batch_size / cfg.world_size)
     print('batch_size per gpu:', bsz_gpu)
 

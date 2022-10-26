@@ -6,7 +6,7 @@ data_root = './data'
 num_workers = 8
 num_classes = 37
 test_time_augmentation = dict(
-    num_of_trans = 10,
+    num_of_trans = 0,
     merge_mode = 'mean',
     sharpen = 0.5 # weight of original image
 )
@@ -51,7 +51,7 @@ batch_size = 16
 
 #log & save
 work_dir = './test_experiment/efficient'
-load = './ood_experiment/efficient/20221024_234247/epoch_150.pth'
+load = './ood_experiment/efficient/20221024_234247/epoch_200.pth'
 # load = './experiment/efficient/20221024_104633/epoch_50.pth'
 
 port = 10001

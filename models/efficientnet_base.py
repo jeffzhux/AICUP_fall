@@ -8,7 +8,8 @@ class EfficientNet_Base(nn.Module):
     def __init__(self, cfg: ConfigDict):
         super(EfficientNet_Base, self).__init__()
         args = cfg.copy()
-        backbone_args = args.pop('backbone')
+
+        backbone_args = cfg.backbone.copy()
 
         backbone_name = backbone_args.pop('type')
         num_classes = backbone_args.pop('num_classes')
