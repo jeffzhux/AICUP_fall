@@ -39,7 +39,7 @@ model = dict(
 )
 
 #train
-epochs = 1
+epochs = 50
 batch_size = 16#128
 
 # loss

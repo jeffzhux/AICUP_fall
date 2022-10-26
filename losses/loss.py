@@ -42,7 +42,8 @@ class CoTeachingLoss(nn.Module):
         super(CoTeachingLoss, self).__init__()
 
         self.forget_rate = forget_rate
-        self.forget_rage_schedule = np.linspace(0, forget_rate**exponent, epochs)
+        self.forget_rage_schedule = np.ones(epochs)*forget_rate
+        self.forget_rage_schedule[:epochs] = np.linspace(0, forget_rate**exponent, epochs)
 
     def forward(self, y1, y2, t, epoch):
         loss1 = F.cross_entropy(y1, t, reduction='none')
@@ -52,7 +53,7 @@ class CoTeachingLoss(nn.Module):
         loss2 = F.cross_entropy(y2, t, reduction='none')
         idx2_sorted = np.argsort(loss2.data.cpu())
 
-        remeber_rate = 1-self.forget_rate
+        remeber_rate = 1-self.forget_rage_schedule[epoch]
         num_remember = int(remeber_rate * len(loss1_sorted))
 
         idx1_update = idx1_sorted[:num_remember]
