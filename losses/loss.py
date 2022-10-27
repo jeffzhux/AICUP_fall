@@ -42,7 +42,7 @@ class CoTeachingLoss(nn.Module):
         super(CoTeachingLoss, self).__init__()
 
         self.forget_rate = forget_rate
-        self.forget_rage_schedule = np.ones(epochs)*forget_rate
+        self.forget_rage_schedule = np.ones(epochs) * forget_rate
         self.forget_rage_schedule[:epochs] = np.linspace(0, forget_rate**exponent, epochs)
 
     def forward(self, y1, y2, t, epoch):

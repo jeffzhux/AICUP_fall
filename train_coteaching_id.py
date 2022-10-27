@@ -95,11 +95,11 @@ def train(model1, model2, optimizer1, optimizer2, dataloader, criterion, epoch, 
             with autocast():
                 logits1= model1(imgs)
                 logits2= model2(imgs)
-                loss1, loss2 = criterion(logits1, logits2, labels, epoch)
+                loss1, loss2 = criterion(logits1, logits2, labels, epoch-1)
         else:
             logits1= model1(imgs)
             logits2= model2(imgs)
-            loss1, loss2 = criterion(logits1, logits2, labels, epoch)
+            loss1, loss2 = criterion(logits1, logits2, labels, epoch-1)
 
         losses1.update(loss1.item(), batch_size)
         losses2.update(loss2.item(), batch_size)
@@ -146,6 +146,7 @@ def train(model1, model2, optimizer1, optimizer2, dataloader, criterion, epoch, 
                         f'loss2(loss avg): {loss2:.3f}({losses2.avg:.3f}), '
                         f'train_Acc2@1: {top1_2.avg:.3f}'
             )
+        
     if logger is not None: 
         now = time.time()
         epoch_time = format_time(now - epoch_end)
@@ -165,7 +166,7 @@ def train(model1, model2, optimizer1, optimizer2, dataloader, criterion, epoch, 
         writer.add_scalar('Train/lr2', lr2, epoch)
         writer.add_scalar('Train/loss2', losses2.avg, epoch)
         writer.add_scalar('Train/acc2@1', top1_2.avg, epoch)
-
+    
 def valid(model1, model2, dataloader, criterion, epoch, cfg, logger, writer):
     model1.eval() # 開啟batch normalization 和 dropout
     model2.eval() # 開啟batch normalization 和 dropout
@@ -194,7 +195,7 @@ def valid(model1, model2, dataloader, criterion, epoch, cfg, logger, writer):
             # forward
             logits1 = model1(images)
             logits2 = model2(images)
-            loss1, loss2 = criterion(logits1, logits2, targets, epoch)
+            loss1, loss2 = criterion(logits1, logits2, targets, epoch-1)
 
             acc1_1, acc5_1 = accuracy(logits1, targets, topk=(1,5))
             acc1_2, acc5_2 = accuracy(logits2, targets, topk=(1,5))
@@ -208,8 +209,8 @@ def valid(model1, model2, dataloader, criterion, epoch, cfg, logger, writer):
             top1_2.update(acc1_2.item(), batch_size)
             top5_2.update(acc5_2.item(), batch_size)
 
-            pred1.append(logits1.detach().copy())
-            pred2.append(logits2.detach().copy())
+            pred1.append(logits1.detach().clone())
+            pred2.append(logits2.detach().clone())
             target.append(targets)
 
     
