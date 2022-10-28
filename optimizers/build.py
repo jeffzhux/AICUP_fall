@@ -6,7 +6,7 @@ from utils.config import ConfigDict
 def build_optimizer(cfg: ConfigDict, params):
     args = cfg.copy()
     name = args.pop('type')
-
+    print(args)
     if hasattr(torch.optim, name):
         optimizer = getattr(torch.optim, name)(params, **args)
     else:
