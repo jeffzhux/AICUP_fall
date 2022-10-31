@@ -21,7 +21,7 @@ data = dict(
         root=f'{data_root}/valid',
         type = 'AICUP_ImageFolder',
         transform = dict(
-            type='base'
+            type='Base'
         )
     )
 )
@@ -30,8 +30,8 @@ data = dict(
 model = dict(
     type="EfficientNet_Base",
     backbone = dict(
-        type = 'efficientnet_b0',
-        weights = 'EfficientNet_B0_Weights.IMAGENET1K_V1',
+        type = 'efficientnet_v2_s',
+        weights = 'EfficientNet_V2_S_Weights.IMAGENET1K_V1',
         num_classes = num_classes 
     )
     
@@ -42,8 +42,8 @@ loss = dict(
     type = 'CrossEntropyLoss'
 )
 #train
-epochs = 100
-batch_size = 256#128
+epochs = 1
+batch_size = 16#256
 
 # optimizer
 lr = 0.01
@@ -74,5 +74,5 @@ save_interval = 50
 work_dir = './experiment/efficient'
 port = 10001
 resume = None # (路徑) 從中斷的地方開始 train
-#load = None # (路徑) 載入訓練好的模型 test
+load = None # (路徑) 載入訓練好的模型 test
 

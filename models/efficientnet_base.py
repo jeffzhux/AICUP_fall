@@ -13,11 +13,8 @@ class EfficientNet_Base(nn.Module):
 
         backbone_name = backbone_args.pop('type')
         num_classes = backbone_args.pop('num_classes')
-        # print("1 ",backbone_args)
         self.backbone = getattr(torchvision.models, backbone_name)(**backbone_args)
-        # print("3 ",list(self.backbone.children())[-1][-1].out_features)
-        self.linear = nn.Linear(list(self.backbone.children())[-1][-1].out_features, num_classes)
+        self.backbone.classifier[-1] = nn.Linear(self.backbone.classifier[-1].in_features, num_classes)
     def forward(self, x):
         x = self.backbone(x)
-        x = self.linear(x)
         return x
