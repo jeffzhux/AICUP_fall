@@ -1,36 +1,39 @@
 # init
 seed = 2022
+amp = True
 
 #data
-data_root = './data'
-num_workers = 2
+data_root = './data/ID'
+num_workers = 8
+num_classes = 33
 data = dict(
+    collate = dict(
+        type = 'MixupCollate',
+        num_classes = num_classes
+    ),
     train = dict(
         root=f'{data_root}/train',
+        type = 'AICUP_ImageFolder',
         transform = dict(
-            type='base'
+            type='baseOnImageNet'
         )
     ),
     vaild = dict(
-        root=f'{data_root}/vaild',
+        root=f'{data_root}/valid',
+        type = 'AICUP_ImageFolder',
         transform = dict(
             type='base'
         )
-    ),
-    test = dict(
-        root=f'{data_root}/test',
-        transform = dict(
-            type='base'
-        )
-    ),
+    )
 )
 
 # model
 model = dict(
-    type="ResNet_Base",
+    type="Swin_Base",
     backbone = dict(
-        depth=18,
-        num_classes = 33
+        type = 'swin_v2_t',
+        weights = 'Swin_V2_T_Weights.IMAGENET1K_V1',
+        num_classes = num_classes 
     )
     
 )
@@ -38,18 +41,17 @@ model = dict(
 # loss
 loss = dict(
     type = 'CrossEntropyLoss'
-
 )
 #train
-epochs = 1
-batch_size = 256
+epochs = 50
+batch_size = 16#128
 
 # optimizer
-lr = 0.5
+lr = 0.001
 optimizer = dict(
-    type='SGD',
+    type='Adam',
     lr = lr,
-    momentum = 0.9,
+    # momentum = 0.9,
     weight_decay = 1e-4
 
 )
@@ -66,9 +68,9 @@ lr_cfg = dict(  # passed to adjust_learning_rate(cfg=lr_cfg)
 
 
 #log & save
-log_interval = 20
-save_interval = 100
-work_dir = './experiment/resnet'
+log_interval = 100
+save_interval = 50
+work_dir = './experiment/efficient'
 port = 10001
 resume = None # (路徑) 從中斷的地方開始 train
 #load = None # (路徑) 載入訓練好的模型 test

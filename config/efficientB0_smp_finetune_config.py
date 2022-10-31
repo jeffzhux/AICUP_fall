@@ -14,14 +14,14 @@ data = dict(
         root=f'{data_root}/train',
         type = 'AICUP_ImageFolder',
         transform = dict(
-            type='baseOnImageNet'
+            type='fixFineTune'
         )
     ),
     vaild = dict(
         root=f'{data_root}/valid',
         type = 'AICUP_ImageFolder',
         transform = dict(
-            type='base'
+            type='fixTest'
         )
     )
 )
@@ -42,11 +42,11 @@ loss = dict(
     type = 'CrossEntropyLoss'
 )
 #train
-epochs = 100
+epochs = 50
 batch_size = 256#128
 
 # optimizer
-lr = 0.01
+lr = 0.0004
 optimizer = dict(
     type = 'SAM',
     rho = 2.0,
