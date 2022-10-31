@@ -9,6 +9,7 @@ import torch.backends.cudnn as cudnn
 import torch.multiprocessing as mp
 import torch.distributed as dist
 import torch
+import torch.nn as nn
 
 
 from torch.utils.tensorboard import SummaryWriter
@@ -48,22 +49,14 @@ def get_config(args: argparse.Namespace) -> Config:
 
     return cfg
 
-def load_weights(ckpt_path, model, optimizer, resume=True) -> int:
-    # load checkpoint
-    print("==> Loading checkpoint '{}'".format(ckpt_path))
-    assert os.path.isfile(ckpt_path)
-    checkpoint = torch.load(ckpt_path, map_location='cuda')
+def load_weights(ckpt_path: str, model: nn.Module) -> None:
 
-    if resume:
-        # load model & optimizer
-        model.load_state_dict(checkpoint['model_state'])
-        optimizer.load_state_dict(checkpoint['optimizer_state'])
-    else:
-        raise ValueError
+    # load checkpoint 
+    print(f"==> Loading Checkpoint {ckpt_path}")
+    assert os.path.isfile(ckpt_path), 'file is not exist'
+    ckpt = torch.load(ckpt_path, map_location='cuda')
 
-    start_epoch = checkpoint['epoch'] + 1
-    print("Loaded. (epoch {})".format(checkpoint['epoch']))
-    return start_epoch
+    model.load_state_dict(ckpt['model_state'])
 
 def train(model, dataloader, criterion, optimizer, epoch, cfg, logger=None, writer=None):
     model.train() # 開啟batch normalization 和 dropout
@@ -230,8 +223,8 @@ def main_worker(rank, world_size, cfg):
     optimizer = build_optimizer(cfg.optimizer, model.parameters())
 
     start_epoch = 1
-    if cfg.resume:
-        start_epoch = load_weights(cfg.resume, model, optimizer, resume=True)
+    if cfg.load:
+        load_weights(cfg.load, model)
 
     cudnn.benchmark = True
     
