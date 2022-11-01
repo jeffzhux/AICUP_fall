@@ -5,7 +5,7 @@ from torchvision.datasets import ImageFolder
 import  torch.nn.functional as F
 from typing import Any, Callable, Optional, Tuple, List, Dict
 
-from datasets.transforms.aicup import base
+from datasets.transforms.aicup import base, fixTest
 
 class AICUP_ImageFolder(ImageFolder):
     """A generic data loader where the images are arranged in this way by default: ::

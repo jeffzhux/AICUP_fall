@@ -5,6 +5,7 @@ import time
 
 import torch
 import torch.nn as nn
+import torch.nn.functional as F
 import torch.distributed as dist
 import torch.multiprocessing as mp
 import torch.backends.cudnn as cudnn
@@ -16,7 +17,6 @@ from utils.config import Config
 from utils.util import Metric, accuracy, set_seed
 from utils.build import build_logger
 from utils.test_time_augmentation import TestTimeAugmentation
-from utils.ood import EnergyOOD
 
 def get_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
@@ -57,12 +57,11 @@ def load_weights(ckpt_path: str, model: nn.Module) -> None:
     model.load_state_dict(ckpt['model_state'])
 
 @torch.no_grad()
-def test(model, dataloader, tta, ood, cfg, logger):
+def iterate_data(model, dataloader, tta, cfg):
     
-    pred = []
+    pred_class = []
     target = []
-    score = []
-    metrix = Metric(cfg.num_classes)
+    
     for idx, (images, labels) in enumerate(dataloader):
         images = images.float().cuda()
         labels = labels.cuda()
@@ -70,33 +69,58 @@ def test(model, dataloader, tta, ood, cfg, logger):
         # forward
         logits = model(images)
         logits = tta(logits)
-        t = ood(logits)
-        pred.append(logits)
-        target.append(labels)
-        score.append(t)
-        # print('20221014 要記得拿掉 break')
-        # break ########### 記得要拿掉
-    pred = torch.cat(pred)
-    target = torch.cat(target)
-    score = torch.cat(score)
-    
-    # torch.save(pred, './pred.pt')
-    # torch.save(target, './target.pt')
-    # torch.save(score, './score_energy_ood.pt')
-    acc1, acc5 = accuracy(pred, target, topk=(1, 5))
-    
 
-    metrix.update(pred, target)
+        pred_class.append(logits)
+        target.append(labels)
+
+    pred_class = torch.cat(pred_class)
+    target = torch.cat(target)
+
+    return pred_class, target
+
+@torch.no_grad()
+def run_eval(model, test_loader, tta, cfg):
+    
+    pred_class, target = iterate_data(model, test_loader, tta, cfg)
+    
+    pred_class = F.softmax(pred_class, dim=-1)
+    
+    metrix = Metric(pred_class.size(-1))
+    metrix.update(pred_class, target)
     recall = metrix.recall('none')
     precision = metrix.precision('none')
+    f1_score = metrix.f1_score('none')
+    acc = metrix.accuracy('none')
+    
+    print(acc)
+    print(recall)
+    print(precision)
+    print(f1_score)
+    
+    # in_num, out_num = in_pred_class.size(0), out_pred_class.size(0)
+    # pred_class = torch.cat((in_pred_class, out_pred_class))
+    # pred_other = torch.cat((in_pred_other, out_pred_other))
+    # target = torch.cat((in_target, out_target))
 
-    print(metrix.weighted_precision())
-    acc1, acc5 = acc1.item(), acc5.item()
-    if logger is not None:
-        logger.info(f'Acc@1: {acc1:.3f}, '
-                    f'Acc@5: {acc5:.3f}, '
-                    f'recall: {recall.mean():.3f}, '
-                    f'precision: {precision.mean():.3f}')
+    # ood_score, _ = torch.max(-pred_other, dim=1)
+
+    # pred_class =
+    # in_score = mos(pred_other)
+       
+    # acc1, acc5 = accuracy(in_pred_class, in_target, topk=(1, 5))
+    # print(acc1)
+    # metrix = Metric(cfg.num_classes)
+    # metrix.update(pred_class, target)
+    # recall = metrix.recall('none')
+    # precision = metrix.precision('none')
+
+    # # print(metrix.weighted_precision())
+    # acc1, acc5 = acc1.item(), acc5.item()
+    # if logger is not None:
+    #     logger.info(f'Acc@1: {acc1:.3f}, '
+    #                 f'Acc@5: {acc5:.3f}, '
+    #                 f'recall: {recall.mean():.3f}, '
+    #                 f'precision: {precision.mean():.3f}')
 
 
 def main_worker(rank, world_size, cfg):
@@ -114,14 +138,11 @@ def main_worker(rank, world_size, cfg):
         dist.init_process_group(backend='nccl', init_method=f'tcp://localhost:{cfg.port}',
                             world_size=world_size, rank=rank)
 
-    logger = None
-    if rank == 0:
-        logger = build_logger(cfg.work_dir, 'test')
-
     bsz_gpu = int(cfg.batch_size / cfg.world_size)
     print('batch_size per gpu:', bsz_gpu)
 
     test_set = build_dataset(cfg.data.test)
+    print(test_set.class_to_idx)
     test_collate = build_collate(cfg.data.collate)
     test_loader = torch.utils.data.DataLoader(
         test_set,
@@ -133,11 +154,11 @@ def main_worker(rank, world_size, cfg):
         drop_last = False
     )
 
+
     model = build_model(cfg.model)
     model.cuda()
     model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[cfg.local_rank])
     tta = TestTimeAugmentation(cfg.test_time_augmentation)
-    ood = EnergyOOD(cfg.out_of_distribution)
     if cfg.load:
         load_weights(cfg.load, model)
 
@@ -145,9 +166,8 @@ def main_worker(rank, world_size, cfg):
     
     print(f"==> Start testing ....")
     model.eval()
+    run_eval(model, test_loader, tta, cfg)
 
-    test(model, test_loader, tta, ood, cfg, logger)
-    
 def main():
     args = get_args()
     cfg = get_config(args)

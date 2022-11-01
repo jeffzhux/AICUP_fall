@@ -58,6 +58,13 @@ def load_weights(ckpt_path: str, model: nn.Module) -> None:
 
     model.load_state_dict(ckpt['model_state'])
     
+    for name, params in model.named_parameters():
+        # print(f'{name},  {child}')
+        if 'classifier' in name:
+            print(name)
+            params.requires_grad = True
+        else:
+            params.requires_grad = False
 
 def train(model, dataloader, criterion, optimizer, epoch, cfg, logger=None, writer=None):
     model.train() # 開啟batch normalization 和 dropout
@@ -92,13 +99,8 @@ def train(model, dataloader, criterion, optimizer, epoch, cfg, logger=None, writ
 
         # compute gradient and do SGD step
         optimizer.zero_grad()
-        # smp first forward-backward pass
-        with model.no_sync():
-            loss.backward()
-        optimizer.first_step(zero_grad=True)
-        # smp second forward-backward pass
-        criterion(model(imgs), labels).backward()
-        optimizer.second_step(zero_grad=True)
+        loss.backward()
+        optimizer.step()
 
         # measure elapsed time
         batch_time.update(time.time() - iter_end)
@@ -216,7 +218,7 @@ def main_worker(rank, world_size, cfg):
     model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
     model.cuda()
     #如果網路當中有不需要backward的find_unused_parameters 要設為 True
-    model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[cfg.local_rank], find_unused_parameters=False)
+    model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[cfg.local_rank], find_unused_parameters=True)
     
     # build criterion
     criterion = build_loss(cfg.loss).cuda()
@@ -231,7 +233,7 @@ def main_worker(rank, world_size, cfg):
     
     for epoch in range(start_epoch, cfg.epochs + 1):
         train_sampler.set_epoch(epoch)
-        adjust_learning_rate(cfg.lr_cfg, optimizer.base_optimizer, epoch)
+        adjust_learning_rate(cfg.lr_cfg, optimizer, epoch)
 
         # train; all processes
         train(model, train_loader, criterion, optimizer, epoch, cfg, logger, writer)

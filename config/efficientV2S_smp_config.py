@@ -21,7 +21,7 @@ data = dict(
         root=f'{data_root}/valid',
         type = 'AICUP_ImageFolder',
         transform = dict(
-            type='Base'
+            type='base'
         )
     )
 )
@@ -70,8 +70,8 @@ lr_cfg = dict(  # passed to adjust_learning_rate(cfg=lr_cfg)
 
 #log & save
 log_interval = 100
-save_interval = 50
-work_dir = './experiment/efficient'
+save_interval = 20
+work_dir = './experiment/efficient_smp'
 port = 10001
 resume = None # (路徑) 從中斷的地方開始 train
 load = None # (路徑) 載入訓練好的模型 test

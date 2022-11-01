@@ -68,22 +68,21 @@ def baseOnImageNet(size: Tuple = (224,224)):
     ])
     return transform
 
-def fixFineTune(resize: Tuple = (320,320), centersize: Tuple = (224, 224)):
+def fixFineTune(resize: Tuple = (320,320), cropsize: Tuple = (224, 224)):
 
     transform = transforms.Compose([
         T.Resize(resize),
-        T.CenterCrop(centersize),
+        T.CenterCrop(cropsize),
         T.RandomHorizontalFlip(),
-        T.AutoAugment(T.AutoAugmentPolicy.IMAGENET),
         T.ToTensor(),
         T.Normalize(imagenet_normalize['mean'], imagenet_normalize['std'])
     ])
     return transform
 
-def fixTest(resize: Tuple = (320,320), centersize: Tuple = (224, 224)):
+def fixTest(resize: Tuple = (320,320), cropsize: Tuple = (224, 224)):
     transform = transforms.Compose([
         T.Resize(resize),
-        T.CenterCrop(centersize),
+        T.CenterCrop(cropsize),
         T.ToTensor(),
         T.Normalize(imagenet_normalize['mean'], imagenet_normalize['std'])
     ])

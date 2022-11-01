@@ -13,8 +13,9 @@ class CollateFunction(nn.Module):
     def forward(self, batch: List[tuple]):
         
         images, labels = zip(*batch)
-        labels = torch.stack(labels)
-
+        images = torch.stack(images)
+        labels = torch.tensor(labels)
+        return images, labels
 class MixupCollate(nn.Module):
     '''
         Returns mixed inputs, pairs of targets, and lambda
