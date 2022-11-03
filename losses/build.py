@@ -9,5 +9,5 @@ def build_loss(cfg):
     if hasattr(torch.nn, name):
         criterion = getattr(torch.nn, name)(**args)
     else:
-        criterion = losses.__dict__[name](**args)
+        criterion = losses.__dict__[name](args)
     return criterion

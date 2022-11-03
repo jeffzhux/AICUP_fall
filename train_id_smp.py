@@ -113,6 +113,7 @@ def train(model, dataloader, criterion, optimizer, epoch, cfg, logger=None, writ
                         f'loss(loss avg): {loss:.3f}({losses.avg:.3f}),  '
                         f'train_Acc@1: {top1.avg:.3f}  '
             )
+        
     if logger is not None: 
         now = time.time()
         epoch_time = format_time(now - epoch_end)

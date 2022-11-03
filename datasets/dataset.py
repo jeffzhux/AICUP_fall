@@ -60,8 +60,9 @@ class AICUP_ImageFolder(ImageFolder):
         sample = self.loader(path)
         if self.transform is not None:
             sample = self.transform(sample)
-        if self.target_transform is not None:
-            target = self.target_transform(target, self.num_of_classes)
+
+        target = torch.tensor(target)
+        target = F.one_hot(target, self.num_of_classes + self.num_of_groups)
 
         return sample, target
 
@@ -126,7 +127,7 @@ class TestTimeAICUP_DataSet(ImageFolder):
 
         return sample, target
 
-class Others_ImageFolder(ImageFolder):
+class Group_ImageFolder(ImageFolder):
     """A generic data loader where the images are arranged in this way by default: ::
 
         root/dog/xxx.png
@@ -142,7 +143,6 @@ class Others_ImageFolder(ImageFolder):
 
     Args:
         root (string): Root directory path.
-        start_class (int): for ood
         transform (callable, optional): A function/transform that  takes in an PIL image
             and returns a transformed version. E.g, ``transforms.RandomCrop``
         target_transform (callable, optional): A function/transform that takes in the
@@ -150,7 +150,7 @@ class Others_ImageFolder(ImageFolder):
         loader (callable, optional): A function to load an image given its path.
         is_valid_file (callable, optional): A function that takes path of an Image file
             and check if the file is a valid file (used to check of corrupt files)
-        
+
      Attributes:
         classes (list): List of the class names sorted alphabetically.
         class_to_idx (dict): Dict with items (class_name, class_index).
@@ -159,32 +159,32 @@ class Others_ImageFolder(ImageFolder):
     def __init__(
         self,
         root: str,
-        start_class : int = 0,
-        end_class: int = 0,
+        groups: list,
+        groups_range: list,
         transform: Optional[Callable] = None,
-        target_transform: Optional[Callable] = None
-    ):
+        target_transform: Optional[Callable] = None):
+        
+        self.groups = groups
+        self.groups_range = groups_range
         super().__init__(
             root,
             transform=transform,
             target_transform=target_transform
         )
-        self.start_class = start_class
-        self.end_class = end_class
+        self.num_of_groups = len(self.groups)
         self.num_of_classes = len(self.classes)
+    def find_classes(self, directory: str) -> Tuple[List[str], Dict[str, int]]:
+        classes = []
+        for g in self.groups:
+            classes.extend(sorted(g))
 
-        # random init target
-        for idx in range(len(self.samples)):
-            self.semi_random(idx)
-    
-    def semi_random(self, idx):
-        if isinstance(idx, int):
-            path, target = self.samples[idx]
-            self.samples[idx] = (path, np.random.randint(self.start_class, self.end_class))
-        elif isinstance(idx, list):
-            for i in idx:
-                path, target = self.samples[i]
-                self.samples[i] = (path, np.random.randint(self.start_class, self.end_class))
+        # classes = sorted(entry.name for entry in os.scandir(directory) if entry.is_dir())
+        if not classes:
+            raise FileNotFoundError(f"Couldn't find any class folder in {directory}.")
+
+        class_to_idx = {cls_name: i for i, cls_name in enumerate(classes)}
+        return classes, class_to_idx
+
     def __getitem__(self, index: int) -> Tuple[Any, Any]:
         """
         Args:
@@ -196,7 +196,11 @@ class Others_ImageFolder(ImageFolder):
         sample = self.loader(path)
         if self.transform is not None:
             sample = self.transform(sample)
-        if self.target_transform is not None:
-            target = self.target_transform(target, self.num_of_classes)
+        
+        other_idx = [idx+self.num_of_classes for idx, s_e in enumerate(self.groups_range) if not s_e[0] <= target < s_e[1]]
 
-        return sample, target, index
+        target = torch.tensor(target)
+        target = F.one_hot(target, self.num_of_classes + self.num_of_groups)
+        target[other_idx] = 1
+        target = target.type(torch.float32)
+        return sample, target

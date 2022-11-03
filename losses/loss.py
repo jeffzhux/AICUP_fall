@@ -3,6 +3,8 @@ import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
 
+from utils.config import ConfigDict
+
 class MixUpLoss(nn.Module):
     def __init__(self) -> None:
         super(MixUpLoss, self).__init__()
@@ -23,7 +25,7 @@ class InOutLoss(nn.Module):
         loss = self.criterion(pred_in, labels_in) + self.lam * self.criterion(pred_out, lables_out)
         return loss
 
-class CoTeachingLoss(nn.Module):
+class GroupLoss(nn.Module):
     '''
     Example : 
         >>> criterion = EngeyLoss(batch_size)
@@ -37,28 +39,17 @@ class CoTeachingLoss(nn.Module):
             >>> loss = criterion(logits, labels)
     '''
 
-    def __init__(self, epochs, forget_rate=0.2, exponent=1)-> None:
-        super(CoTeachingLoss, self).__init__()
-
-        self.forget_rate = forget_rate
-        self.forget_rage_schedule = np.ones(epochs) * forget_rate
-        self.forget_rage_schedule[:epochs] = np.linspace(0, forget_rate**exponent, epochs)
-
-    def forward(self, y1, y2, t, epoch):
-        loss1 = F.cross_entropy(y1, t, reduction='none')
-        idx1_sorted = np.argsort(loss1.data.cpu())
-        loss1_sorted = loss1[idx1_sorted]
-
-        loss2 = F.cross_entropy(y2, t, reduction='none')
-        idx2_sorted = np.argsort(loss2.data.cpu())
-
-        remeber_rate = 1-self.forget_rage_schedule[epoch]
-        num_remember = int(remeber_rate * len(loss1_sorted))
-
-        idx1_update = idx1_sorted[:num_remember]
-        idx2_update = idx2_sorted[:num_remember]
-
-        loss1_update = F.cross_entropy(y1[idx2_update], t[idx2_update])
-        loss2_update = F.cross_entropy(y2[idx1_update], t[idx1_update])
-
-        return torch.sum(loss1_update) / num_remember, torch.sum(loss2_update) / num_remember
+    def __init__(self, cfg: ConfigDict)-> None:
+        super(GroupLoss, self).__init__()
+        args = cfg.copy()
+        self.groups_range = args.groups_range
+        self.num_of_group = len(self.groups_range)
+        self.criterion = nn.CrossEntropyLoss()
+    def forward(self, pred, label):
+        loss = 0
+        for idx, (start, end) in enumerate(self.groups_range):
+            other_idx = -self.num_of_group + idx
+            sub_pred = torch.cat((pred[:,start:end], pred[:,other_idx].view(-1,1)), dim=-1)
+            sub_label = torch.cat((label[:,start:end], label[:,other_idx].view(-1,1)), dim=-1)
+            loss += self.criterion(sub_pred, sub_label)
+        return loss
