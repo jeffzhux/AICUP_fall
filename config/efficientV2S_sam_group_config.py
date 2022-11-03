@@ -57,8 +57,8 @@ loss = dict(
     groups_range = groups_range
 )
 #train
-epochs = 1
-batch_size = 32#256
+epochs = 100
+batch_size = 256
 
 # optimizer
 lr = 0.01

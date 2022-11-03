@@ -13,7 +13,7 @@ import torch.nn as nn
 
 
 from torch.utils.tensorboard import SummaryWriter
-from utils.util import AverageMeter, TrackMeter, accuracy, adjust_learning_rate, format_time, set_seed
+from utils.util import AverageMeter, TrackMeter, accuracy, adjust_learning_rate, format_time, set_seed, group_accuracy
 from utils.build import build_logger
 from datasets.build import build_dataset
 from models.build import build_model
@@ -144,8 +144,10 @@ def valid(model, dataloader, criterion, optimizer, epoch, cfg, logger, writer):
             # forward
             logits = model(images)
             loss = criterion(logits, targets)
-            acc1, acc5 = accuracy(logits, targets, topk=(1,5))
-
+            
+            ########### 測試group準確率 記得要修改回來 ###################
+            # acc1, acc5 = accuracy(logits, targets, topk=(1,5))
+            acc1, acc5 = group_accuracy(logits, targets, cfg.groups_range, topk=(1,5))
             # update metric
             losses.update(loss.item(), batch_size)
             top1.update(acc1.item(), batch_size)

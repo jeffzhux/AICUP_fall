@@ -243,6 +243,19 @@ def accuracy(output, target, topk=(1,)):
                 res.append(correct.sum().mul_(100.0 / target.sum()))
         return res    
 
+def group_accuracy(output, target, groups_range, topk=(1, )):
+    target = target[:, :-len(groups_range)]
+
+    all_group_score = []
+    for idx, (start, end) in enumerate(groups_range):
+        other_idx = -len(groups_range) + idx
+        sub_pred = torch.cat((output[:,start:end], output[:,other_idx].view(-1,1)), dim=-1)
+        sub_softmax = F.softmax(sub_pred, dim=-1)
+        all_group_score.append(sub_softmax[:, :-1]) # except others class
+    all_group_score = torch.cat(all_group_score, dim=-1)
+    
+    return accuracy(all_group_score, target, topk)
+
 def _get_lr(cfg, step):
     lr = cfg.lr
     if cfg.type == 'Cosine':  # Cosine Anneal
