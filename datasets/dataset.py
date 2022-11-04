@@ -62,7 +62,7 @@ class AICUP_ImageFolder(ImageFolder):
             sample = self.transform(sample)
 
         target = torch.tensor(target)
-        target = F.one_hot(target, self.num_of_classes + self.num_of_groups)
+        target = F.one_hot(target, self.num_of_classes)
 
         return sample, target
 

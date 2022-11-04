@@ -5,10 +5,10 @@ amp = True
 #data
 data_root = './data/ID'
 num_workers = 8
-num_classes = 37
+num_classes = 33
 data = dict(
     collate = dict(
-        type = 'MixupCollate',
+        type = 'CutMixCollate',
         num_classes = num_classes
     ),
     train = dict(
@@ -43,7 +43,7 @@ loss = dict(
     type = 'CrossEntropyLoss'
 )
 #train
-epochs = 50
+epochs = 1
 batch_size = 16#128
 
 # optimizer
