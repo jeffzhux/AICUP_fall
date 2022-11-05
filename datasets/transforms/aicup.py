@@ -68,6 +68,18 @@ def baseOnImageNet(size: Tuple = (224,224)):
     ])
     return transform
 
+def baseOnTrivialAugment(size: Tuple = (224,224)):
+    transform = transforms.Compose([
+        T.RandomResizedCrop(size),
+        T.RandomHorizontalFlip(),
+        T.TrivialAugmentWide(),
+        T.ToTensor(),
+        T.Normalize(imagenet_normalize['mean'], imagenet_normalize['std']),
+        T.RandomErasing(p=0.1)
+    ])
+    return transform
+
+
 def fixFineTune(resize: Tuple = (320,320), cropsize: Tuple = (224, 224)):
 
     transform = transforms.Compose([

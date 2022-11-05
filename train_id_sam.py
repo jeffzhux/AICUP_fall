@@ -16,6 +16,7 @@ from torch.utils.tensorboard import SummaryWriter
 from utils.util import AverageMeter, TrackMeter, accuracy, adjust_learning_rate, format_time, set_seed, group_accuracy
 from utils.build import build_logger
 from datasets.build import build_dataset
+from datasets.sampler import RASampler
 from models.build import build_model
 from losses.build import build_loss
 from optimizers.build import build_optimizer
@@ -146,8 +147,8 @@ def valid(model, dataloader, criterion, optimizer, epoch, cfg, logger, writer):
             loss = criterion(logits, targets)
             
             ########### 測試group準確率 記得要修改回來 ###################
-            # acc1, acc5 = accuracy(logits, targets, topk=(1,5))
-            acc1, acc5 = group_accuracy(logits, targets, cfg.groups_range, topk=(1,5))
+            acc1, acc5 = accuracy(logits, targets, topk=(1,5))
+            # acc1, acc5 = group_accuracy(logits, targets, cfg.groups_range, topk=(1,5))
             # update metric
             losses.update(loss.item(), batch_size)
             top1.update(acc1.item(), batch_size)
@@ -194,7 +195,7 @@ def main_worker(rank, world_size, cfg):
 
     train_set =  build_dataset(cfg.data.train)
     train_collate = build_collate(cfg.data.collate)
-    train_sampler = torch.utils.data.distributed.DistributedSampler(train_set, shuffle=True)
+    train_sampler = RASampler(train_set, shuffle=True)
     train_loader = torch.utils.data.DataLoader(
         train_set,
         batch_size=bsz_gpu,

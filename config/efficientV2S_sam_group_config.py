@@ -32,11 +32,12 @@ data = dict(
     vaild = dict(
         root=f'{data_root}/valid',
         type = 'Group_ImageFolder',
-        groups = groups,
-        groups_range = groups_range,
         transform = dict(
             type='base'
-        )
+        ),
+        groups = groups,
+        groups_range = groups_range
+        
     )
 )
 
@@ -86,7 +87,7 @@ lr_cfg = dict(  # passed to adjust_learning_rate(cfg=lr_cfg)
 #log & save
 log_interval = 100
 save_interval = 20
-work_dir = './experiment/efficient_smp_group'
+work_dir = './experiment/efficient_sam_group'
 port = 10001
 resume = None # (路徑) 從中斷的地方開始 train
 load = None # (路徑) 載入訓練好的模型 test

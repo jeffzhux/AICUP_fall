@@ -15,6 +15,7 @@ import torch
 from torch.utils.tensorboard import SummaryWriter
 from utils.util import AverageMeter, TrackMeter, accuracy, adjust_learning_rate, format_time, set_seed
 from utils.build import build_logger
+from datasets.sampler import RASampler
 from datasets.build import build_dataset
 from models.build import build_model
 from losses.build import build_loss
@@ -216,7 +217,7 @@ def main_worker(rank, world_size, cfg):
 
     train_set =  build_dataset(cfg.data.train)
     train_collate = build_collate(cfg.data.collate)
-    train_sampler = torch.utils.data.distributed.DistributedSampler(train_set, shuffle=True)
+    train_sampler = RASampler(train_set, shuffle=True)
     train_loader = torch.utils.data.DataLoader(
         train_set,
         batch_size=bsz_gpu,

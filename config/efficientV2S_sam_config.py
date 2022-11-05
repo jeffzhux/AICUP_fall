@@ -7,21 +7,21 @@ num_workers = 8
 num_classes = 33
 data = dict(
     collate = dict(
-        type = 'CollateFunction',
-        # num_classes = num_classes
+        type = 'RandomMixupCutMixCollate',
+        num_classes = num_classes
     ),
     train = dict(
         root=f'{data_root}/train',
         type = 'AICUP_ImageFolder',
         transform = dict(
-            type='fixFineTune'
+            type='baseOnTrivialAugment'
         )
     ),
     vaild = dict(
         root=f'{data_root}/valid',
         type = 'AICUP_ImageFolder',
         transform = dict(
-            type='fixTest'
+            type='base'
         )
     )
 )
@@ -39,19 +39,22 @@ model = dict(
 
 # loss
 loss = dict(
-    type = 'CrossEntropyLoss'
+    type = 'CrossEntropyLoss',
+    label_smoothing = 0.1
 )
 #train
-epochs = 1
-batch_size = 16#128
+epochs = 100#100
+batch_size = 256#256
 
 # optimizer
-lr = 0.0004
+lr = 0.01
 optimizer = dict(
-    type = 'SGD',
+    type = 'SAM',
+    rho = 2.0,
+    adaptive = True,
     lr = lr,
     momentum = 0.9,
-    weight_decay = 5e-4
+    weight_decay = 5e-4,
 )
 
 lr_cfg = dict(  # passed to adjust_learning_rate(cfg=lr_cfg)
@@ -68,9 +71,9 @@ lr_cfg = dict(  # passed to adjust_learning_rate(cfg=lr_cfg)
 
 #log & save
 log_interval = 100
-save_interval = 10
-work_dir = './experiment/efficient_finetune'
+save_interval = 20
+work_dir = './experiment/efficient_sam'
 port = 10001
 resume = None # (路徑) 從中斷的地方開始 train
-load = './experiment/efficient_smp/20221031_140240/epoch_100.pth' # (路徑) 載入訓練好的模型 test
+load = None # (路徑) 載入訓練好的模型 test
 

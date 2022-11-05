@@ -83,7 +83,26 @@ def run_eval(model, test_loader, tta, cfg):
     
     pred_class, target = iterate_data(model, test_loader, tta, cfg)
     
-    pred_class = F.softmax(pred_class, dim=-1)
+    if not hasattr(cfg, 'group_range'):
+        all_group_score = []
+        other_group_score = []
+        for idx, (start, end) in enumerate(cfg.groups_range):
+            other_idx = -len(cfg.groups_range) + idx
+            sub_pred = torch.cat((pred_class[:,start:end], pred_class[:,other_idx].view(-1,1)), dim=-1)
+            sub_softmax = F.softmax(sub_pred, dim=-1)
+            all_group_score.append(sub_softmax[:, :-1]) # except others class
+            other_group_score.append(sub_softmax[:,-1:])
+        all_group_score = torch.cat(all_group_score, dim=-1)
+        other_group_score = torch.cat(other_group_score, dim=-1)
+
+        min_other_score, min_other_idx = torch.min(other_group_score, dim=-1)
+        pred_class = all_group_score
+        pred_class[:,4] = torch.where(min_other_score > 0.8, 1, pred_class[:,4])
+
+        target = target[:, :-len(cfg.groups_range)]
+        target = torch.argmax(target, dim=-1)
+    else:
+        pred_class = F.softmax(pred_class, dim=-1)
     
     metrix = Metric(pred_class.size(-1))
     metrix.update(pred_class, target)
@@ -91,11 +110,12 @@ def run_eval(model, test_loader, tta, cfg):
     precision = metrix.precision('none')
     f1_score = metrix.f1_score('none')
     acc = metrix.accuracy('none')
-    
+    wp = metrix.weighted_precision(0.5)
     print(acc)
     print(recall)
     print(precision)
     print(f1_score)
+    print(wp)
 
 def main_worker(rank, world_size, cfg):
     print(f'==> start rank: {rank}')
@@ -135,8 +155,9 @@ def main_worker(rank, world_size, cfg):
     tta = TestTimeAugmentation(cfg.test_time_augmentation)
     if cfg.load:
         load_weights(cfg.load, model)
-
-    cudnn.benchmark = True
+    # We disable the cudnn benchmarking because it can noticeably affect the accuracy
+    cudnn.benchmark = False
+    cudnn.deterministic = True
     
     print(f"==> Start testing ....")
     model.eval()

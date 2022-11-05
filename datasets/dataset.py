@@ -63,7 +63,7 @@ class AICUP_ImageFolder(ImageFolder):
 
         target = torch.tensor(target)
         target = F.one_hot(target, self.num_of_classes)
-
+        target = target.type(torch.float32)
         return sample, target
 
 class TestTimeAICUP_DataSet(ImageFolder):

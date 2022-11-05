@@ -18,18 +18,18 @@ class CollateFunction(nn.Module):
         return images, labels
 
 class RandomMixupCutMixCollate(nn.Module):
-    def __init__(self, num_classes, alpha=1.0):
+    def __init__(self, num_classes, mixup_alpha=0.2, cutmix_alpha=1.0):
         super(RandomMixupCutMixCollate, self).__init__()
-        self.alpha = alpha
         self.num_classes = num_classes
-        self.mixup = MixupCollate(num_classes)
-        self.cutmix = CutMixCollate(num_classes)
+        self.mixup = MixupCollate(num_classes, alpha=mixup_alpha)
+        self.cutmix = CutMixCollate(num_classes, alpha=cutmix_alpha)
     def forward(self, batch: List[tuple]):
         flag = np.random.choice([True, False])
         if flag:
             return self.mixup(batch)
         else:
             return self.cutmix(batch)
+            
 class MixupCollate(nn.Module):
     '''
         Returns mixed inputs, pairs of targets, and lambda

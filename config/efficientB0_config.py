@@ -40,7 +40,8 @@ model = dict(
 
 # loss
 loss = dict(
-    type = 'CrossEntropyLoss'
+    type = 'CrossEntropyLoss',
+    label_smoothing=0.1
 )
 #train
 epochs = 1
