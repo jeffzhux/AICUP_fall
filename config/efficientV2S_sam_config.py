@@ -54,8 +54,8 @@ loss = dict(
     label_smoothing = 0.1
 )
 #train
-epochs = 1#100
-batch_size = 16#256
+epochs = 100#100
+batch_size = 256#256
 
 # optimizer
 lr = 0.01
