@@ -40,6 +40,6 @@ batch_size = 16
 
 #log & save
 work_dir = './test_experiment/efficient'
-load = './experiment/efficient_smp/20221031_140240/epoch_100.pth'
+load = './experiment/efficient_sam/20221105_212642/epoch_100.pth'
 port = 10001
 

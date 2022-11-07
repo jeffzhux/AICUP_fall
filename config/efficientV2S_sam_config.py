@@ -10,6 +10,11 @@ data = dict(
         type = 'RandomMixupCutMixCollate',
         num_classes = num_classes
     ),
+    sampler = dict(
+        type='RASampler',
+        shuffle = True,
+        repetitions = 4
+    ),
     train = dict(
         root=f'{data_root}/train',
         type = 'AICUP_ImageFolder',
@@ -27,6 +32,12 @@ data = dict(
 )
 
 # model
+model_ema = dict(
+    status = True,
+    steps=32,
+    decay=0.99998
+)
+
 model = dict(
     type="EfficientNet_Base",
     backbone = dict(
@@ -43,18 +54,19 @@ loss = dict(
     label_smoothing = 0.1
 )
 #train
-epochs = 100#100
-batch_size = 256#256
+epochs = 1#100
+batch_size = 16#256
 
 # optimizer
 lr = 0.01
+weight_decay = 2e-05
 optimizer = dict(
     type = 'SAM',
     rho = 2.0,
     adaptive = True,
     lr = lr,
     momentum = 0.9,
-    weight_decay = 5e-4,
+    weight_decay = weight_decay,
 )
 
 lr_cfg = dict(  # passed to adjust_learning_rate(cfg=lr_cfg)

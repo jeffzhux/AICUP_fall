@@ -13,11 +13,11 @@ import torch.nn as nn
 
 
 from torch.utils.tensorboard import SummaryWriter
-from utils.util import AverageMeter, TrackMeter, accuracy, adjust_learning_rate, format_time, set_seed, group_accuracy
+from utils.util import AverageMeter, TrackMeter, accuracy, adjust_learning_rate, format_time, set_seed, set_weight_decay
 from utils.build import build_logger
 from datasets.build import build_dataset
-from datasets.sampler import RASampler
-from models.build import build_model
+from datasets.sampler.build import build_sampler
+from models.build import build_model, build_ema_model
 from losses.build import build_loss
 from optimizers.build import build_optimizer
 
@@ -59,7 +59,7 @@ def load_weights(ckpt_path: str, model: nn.Module) -> None:
 
     model.load_state_dict(ckpt['model_state'])
 
-def train(model, dataloader, criterion, optimizer, epoch, cfg, logger=None, writer=None):
+def train(model, model_ema, dataloader, criterion, optimizer, epoch, cfg, logger=None, writer=None):
     model.train() # 開啟batch normalization 和 dropout
     
     batch_time = AverageMeter()
@@ -100,6 +100,12 @@ def train(model, dataloader, criterion, optimizer, epoch, cfg, logger=None, writ
         criterion(model(imgs), labels).backward()
         optimizer.second_step(zero_grad=True)
 
+        if model_ema and idx % cfg.model_ema.steps == 0:
+            model_ema.update_parameters(model)
+            if epoch < cfg.lr_cfg.warmup_steps:
+                # Reset ema buffer to keep copying weights during warmup period
+                model_ema.n_averaged.fill_(0)
+                
         # measure elapsed time
         batch_time.update(time.time() - iter_end)
         iter_end = time.time()
@@ -188,17 +194,17 @@ def main_worker(rank, world_size, cfg):
         writer = SummaryWriter(log_dir=os.path.join(cfg.work_dir, 'tensorboard'))
         logger = build_logger(cfg.work_dir, 'train')
 
-    bsz_gpu = int(cfg.batch_size / cfg.world_size)
-    print('batch_size per gpu:', bsz_gpu)
+    cfg.bsz_gpu = int(cfg.batch_size / cfg.world_size)
+    print('batch_size per gpu:', cfg.bsz_gpu)
     
     # build dataset
 
     train_set =  build_dataset(cfg.data.train)
     train_collate = build_collate(cfg.data.collate)
-    train_sampler = RASampler(train_set, shuffle=True)
+    train_sampler = build_sampler(train_set, cfg.data.sampler)
     train_loader = torch.utils.data.DataLoader(
         train_set,
-        batch_size=bsz_gpu,
+        batch_size=cfg.bsz_gpu,
         num_workers=cfg.num_workers,
         collate_fn = train_collate,
         pin_memory=True,
@@ -208,7 +214,7 @@ def main_worker(rank, world_size, cfg):
     valid_set = build_dataset(cfg.data.vaild)
     valid_loader = torch.utils.data.DataLoader(
         valid_set,
-        batch_size=bsz_gpu,
+        batch_size=cfg.bsz_gpu,
         num_workers=cfg.num_workers,
         pin_memory=True,
         drop_last=True
@@ -216,15 +222,17 @@ def main_worker(rank, world_size, cfg):
     
     # build model
     model = build_model(cfg.model)
-    model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
     model.cuda()
+    model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
     #如果網路當中有不需要backward的find_unused_parameters 要設為 True
     model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[cfg.local_rank], find_unused_parameters=False)
     
+    model_ema = build_ema_model(model, cfg)
     # build criterion
     criterion = build_loss(cfg.loss).cuda()
     # build optimizer
-    optimizer = build_optimizer(cfg.optimizer, model.parameters())
+    parameters = set_weight_decay(model, cfg.weight_decay)
+    optimizer = build_optimizer(cfg.optimizer, parameters)
 
     start_epoch = 1
     if cfg.load:
@@ -237,9 +245,12 @@ def main_worker(rank, world_size, cfg):
         adjust_learning_rate(cfg.lr_cfg, optimizer.base_optimizer, epoch)
 
         # train; all processes
-        train(model, train_loader, criterion, optimizer, epoch, cfg, logger, writer)
+        train(model, model_ema, train_loader, criterion, optimizer, epoch, cfg, logger, writer)
         
-        valid(model, valid_loader, criterion, optimizer, epoch, cfg, logger, writer)
+        if model_ema:
+            valid(model_ema, valid_loader, criterion, optimizer, epoch, cfg, logger, writer)
+        else:
+            valid(model, valid_loader, criterion, optimizer, epoch, cfg, logger, writer)
 
         # save ckpt; master process
         if rank == 0 and epoch % cfg.save_interval == 0:
@@ -249,6 +260,8 @@ def main_worker(rank, world_size, cfg):
                 'model_state': model.state_dict(),
                 'epoch': epoch
             }
+            if model_ema:
+                state_dict['model_ema_state'] = model_ema.state_dict()
             torch.save(state_dict, model_path)
 
 def main():

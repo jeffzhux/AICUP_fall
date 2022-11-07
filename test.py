@@ -83,7 +83,7 @@ def run_eval(model, test_loader, tta, cfg):
     
     pred_class, target = iterate_data(model, test_loader, tta, cfg)
     
-    if not hasattr(cfg, 'group_range'):
+    if hasattr(cfg, 'groups_range'):
         all_group_score = []
         other_group_score = []
         for idx, (start, end) in enumerate(cfg.groups_range):
@@ -103,7 +103,8 @@ def run_eval(model, test_loader, tta, cfg):
         target = torch.argmax(target, dim=-1)
     else:
         pred_class = F.softmax(pred_class, dim=-1)
-    
+    print(pred_class.size())
+    print(target.size())
     metrix = Metric(pred_class.size(-1))
     metrix.update(pred_class, target)
     recall = metrix.recall('none')
@@ -161,6 +162,7 @@ def main_worker(rank, world_size, cfg):
     
     print(f"==> Start testing ....")
     model.eval()
+    # with torch.inference_mode:
     run_eval(model, test_loader, tta, cfg)
 
 def main():

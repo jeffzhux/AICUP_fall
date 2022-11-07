@@ -4,6 +4,7 @@ import torchvision.transforms as T
 from PIL import ImageDraw
 import math
 import random
+from torchvision.transforms.functional import InterpolationMode
 imagenet_normalize = {
     'mean': [0.485, 0.456, 0.406],
     'std': [0.229, 0.224, 0.225]
@@ -41,7 +42,7 @@ class randomAim(object):
 
 def base(size: Tuple = (224,224)):
     transform = transforms.Compose([
-        T.Resize(size),
+        T.Resize(size, interpolation = InterpolationMode.BILINEAR),
         T.ToTensor(),
         T.Normalize(imagenet_normalize['mean'], imagenet_normalize['std'])
     ])
@@ -70,9 +71,9 @@ def baseOnImageNet(size: Tuple = (224,224)):
 
 def baseOnTrivialAugment(size: Tuple = (224,224)):
     transform = transforms.Compose([
-        T.RandomResizedCrop(size),
+        T.RandomResizedCrop(size, interpolation = InterpolationMode.BILINEAR),
         T.RandomHorizontalFlip(),
-        T.TrivialAugmentWide(),
+        T.TrivialAugmentWide(interpolation=InterpolationMode.BILINEAR),
         T.ToTensor(),
         T.Normalize(imagenet_normalize['mean'], imagenet_normalize['std']),
         T.RandomErasing(p=0.1)

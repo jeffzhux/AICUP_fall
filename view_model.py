@@ -5,6 +5,7 @@ from datasets.dataset import Group_ImageFolder
 from datasets.transforms import baseOnImageNet
 from datasets.collates import CutMixCollate, RandomMixupCutMixCollate
 from utils.util import group_accuracy
+from utils.util import set_weight_decay
 class EfficientNet_Group_Base(nn.Module):
     def __init__(self):
         super(EfficientNet_Group_Base, self).__init__()
@@ -57,6 +58,7 @@ groups_range = [
 ]
 x = torch.rand((4,3,32,32))
 model = EfficientNet_Group_Base()
+set_weight_decay(model, weight_decay=2e-5)
 pred = model(x)
 
 transform = baseOnImageNet()
@@ -69,6 +71,7 @@ dataloader = torch.utils.data.DataLoader(
     shuffle=True
 )
 # print(dataset.class_to_idx)
+
 for img, target in dataloader:
     # pred = model(img)
     # acc1, acc5 = group_accuracy(pred, target, groups_range, (1, 5))
