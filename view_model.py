@@ -11,6 +11,7 @@ class EfficientNet_Group_Base(nn.Module):
     def __init__(self):
         super(EfficientNet_Group_Base, self).__init__()
         self.backbone =  torchvision.models.efficientnet_b0()
+        self.backbone.classifier[-2].p = 0.4
         self.backbone.classifier[-1] = nn.Linear(self.backbone.classifier[-1].in_features, 36)
 
         groups = [
@@ -97,6 +98,9 @@ dataloader = torch.utils.data.DataLoader(
     shuffle=True
 )
 # print(dataset.class_to_idx)
+
+for name, sub_model in model.named_children():
+    print(sub_model)
 
 for img, target in dataloader:
     # pred = model(img)

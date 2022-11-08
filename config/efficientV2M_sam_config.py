@@ -20,7 +20,7 @@ data = dict(
         type = 'AICUP_ImageFolder',
         transform = dict(
             type='baseOnTrivialAugment',
-            size = (384, 384)
+            size = (380, 380)
         )
     ),
     vaild = dict(
@@ -28,7 +28,7 @@ data = dict(
         type = 'AICUP_ImageFolder',
         transform = dict(
             type='base',
-            size = (384, 384)
+            size = (380, 380)
         )
     )
 )
@@ -45,7 +45,8 @@ model = dict(
     backbone = dict(
         type = 'efficientnet_v2_m',
         weights = 'EfficientNet_V2_M_Weights.IMAGENET1K_V1',
-        num_classes = num_classes 
+        dropout_rate = 0.4,
+        num_classes = num_classes
     )
     
 )
@@ -57,8 +58,7 @@ loss = dict(
 )
 #train
 epochs = 1#400
-batch_size = 128#256
-
+batch_size = 128
 # optimizer
 lr = 0.01
 weight_decay = 2e-05
