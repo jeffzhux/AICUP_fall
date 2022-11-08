@@ -24,12 +24,11 @@ class RandomMixupCutMixCollate(nn.Module):
         self.mixup = MixupCollate(num_classes, alpha=mixup_alpha)
         self.cutmix = CutMixCollate(num_classes, alpha=cutmix_alpha)
     def forward(self, batch: List[tuple]):
-        flag = np.random.choice([True, False])
-        if flag:
-            return self.mixup(batch)
-        else:
-            return self.cutmix(batch)
-            
+        bs = len(batch) // 2
+        img1, lab1 = self.mixup(batch[:bs])
+        img2, lab2 = self.cutmix(batch[bs:])
+        return torch.concat((img1, img2), dim=0), torch.concat((lab1, lab2), dim=0)
+
 class MixupCollate(nn.Module):
     '''
         Returns mixed inputs, pairs of targets, and lambda

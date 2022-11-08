@@ -111,12 +111,13 @@ def run_eval(model, test_loader, tta, cfg):
     precision = metrix.precision('none')
     f1_score = metrix.f1_score('none')
     acc = metrix.accuracy('none')
-    wp = metrix.weighted_precision(0.5)
+    wp = metrix.weighted_precision(0.7)
     print(acc)
     print(recall)
     print(precision)
     print(f1_score)
-    print(wp)
+    print(f'acc : {acc.mean().item()}')
+    print(f'wp : {wp.item()}')
 
 def main_worker(rank, world_size, cfg):
     print(f'==> start rank: {rank}')

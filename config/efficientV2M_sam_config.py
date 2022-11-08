@@ -1,6 +1,5 @@
 # init
 seed = 2022
-amp = True
 
 #data
 data_root = './data/ID'
@@ -8,31 +7,44 @@ num_workers = 8
 num_classes = 33
 data = dict(
     collate = dict(
-        type = 'MixupCollate',
+        type = 'RandomMixupCutMixCollate',
         num_classes = num_classes
+    ),
+    sampler = dict(
+        type='RASampler',
+        shuffle = True,
+        repetitions = 4
     ),
     train = dict(
         root=f'{data_root}/train',
         type = 'AICUP_ImageFolder',
         transform = dict(
-            type='baseOnImageNet'
+            type='baseOnTrivialAugment',
+            size = (384, 384)
         )
     ),
     vaild = dict(
         root=f'{data_root}/valid',
         type = 'AICUP_ImageFolder',
         transform = dict(
-            type='base'
+            type='base',
+            size = (384, 384)
         )
     )
 )
 
 # model
+model_ema = dict(
+    status = True,
+    steps=32,
+    decay=0.99998
+)
+
 model = dict(
-    type="Swin_Base",
+    type="EfficientNet_Base",
     backbone = dict(
-        type = 'swin_v2_t',
-        weights = 'Swin_V2_T_Weights.IMAGENET1K_V1',
+        type = 'efficientnet_v2_m',
+        weights = 'EfficientNet_V2_M_Weights.IMAGENET1K_V1',
         num_classes = num_classes 
     )
     
@@ -40,21 +52,25 @@ model = dict(
 
 # loss
 loss = dict(
-    type = 'CrossEntropyLoss'
+    type = 'CrossEntropyLoss',
+    label_smoothing = 0.1
 )
 #train
-epochs = 1
-batch_size = 16#128
+epochs = 1#400
+batch_size = 128#256
 
 # optimizer
-lr = 0.001
+lr = 0.01
+weight_decay = 2e-05
 optimizer = dict(
-    type='Adam',
+    type = 'SAM',
+    rho = 2.0,
+    adaptive = True,
     lr = lr,
-    # momentum = 0.9,
-    weight_decay = 1e-4
-
+    momentum = 0.9,
+    weight_decay = weight_decay,
 )
+
 lr_cfg = dict(  # passed to adjust_learning_rate(cfg=lr_cfg)
     type='Cosine',
     steps=epochs,
@@ -62,15 +78,16 @@ lr_cfg = dict(  # passed to adjust_learning_rate(cfg=lr_cfg)
     decay_rate=0.1,
     # decay_steps=[100, 150]
     #start_step=0,
-    warmup_steps=0, # 100
-    #warmup_from=1e-6
+    warmup_steps=5, # 100
+    warmup_from=lr * 0.1
 )
 
 
 #log & save
 log_interval = 100
-save_interval = 50
-work_dir = './experiment/efficient'
+save_interval = 20
+work_dir = './experiment/efficient_sam'
 port = 10001
 resume = None # (路徑) 從中斷的地方開始 train
-#load = None # (路徑) 載入訓練好的模型 test
+load = None # (路徑) 載入訓練好的模型 test
+

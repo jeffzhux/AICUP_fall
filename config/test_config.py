@@ -19,7 +19,11 @@ data = dict(
         root=f'{data_root}/ID/valid',
         type = 'TestTimeAICUP_DataSet',
         transform = dict(
-            type='baseOnImageNet'
+            type='base',
+        ),
+        base_transform = dict(
+            type='base',
+            size = (320,320)
         ),
         num_of_trans = test_time_augmentation['num_of_trans']
     )
@@ -41,5 +45,7 @@ batch_size = 16
 #log & save
 work_dir = './test_experiment/efficient'
 load = './experiment/efficient_sam/20221105_212642/epoch_100.pth'
+# load = './experiment/efficient_sam/20221107_132000/epoch_100.pth'
+
 port = 10001
 

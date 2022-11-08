@@ -100,8 +100,9 @@ class TestTimeAICUP_DataSet(ImageFolder):
         root: str,
         transform: Optional[Callable] = None,
         target_transform: Optional[Callable] = None,
-        num_of_trans: int = 0
-    ):
+        base_transform: Optional[Callable] = base,
+        num_of_trans: int = 0):
+
         super().__init__(
             root,
             transform=transform,
@@ -109,7 +110,7 @@ class TestTimeAICUP_DataSet(ImageFolder):
         )
         self.num_of_trans = num_of_trans
         self.num_of_classes = len(self.classes)
-        self.base_transform = base()
+        self.base_transform = base_transform
     def __getitem__(self, index: int) -> Tuple[Any, Any]:
         """
         Args:

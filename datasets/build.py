@@ -13,8 +13,12 @@ def build_dataset(cfg: ConfigDict):
     if args.get('target_transform') != None:
         target_trans_args = args.pop('target_transform')
         target_transform = build_target_transform(target_trans_args)
-    ds_name = args.pop('type')
 
+    if args.get('base_transform') != None:
+        base_transform_args = args.pop("base_transform")
+        args['base_transform'] = build_transform(base_transform_args)
+        
+    ds_name = args.pop('type')
     if hasattr(torchvision.datasets, ds_name):
         ds = getattr(torchvision.datasets, ds_name)(**args, transform=transform)
     else:

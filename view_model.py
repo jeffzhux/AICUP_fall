@@ -3,9 +3,10 @@ import torch.nn as nn
 import torchvision
 from datasets.dataset import Group_ImageFolder
 from datasets.transforms import baseOnImageNet
-from datasets.collates import CutMixCollate, RandomMixupCutMixCollate
-from utils.util import group_accuracy
+from datasets.collates import RandomMixupCutMixCollate
+from utils.util import ExponentialMovingAverage
 from utils.util import set_weight_decay
+from utils.config import ConfigDict
 class EfficientNet_Group_Base(nn.Module):
     def __init__(self):
         super(EfficientNet_Group_Base, self).__init__()
@@ -57,9 +58,34 @@ groups_range = [
     (18, 33)
 ]
 x = torch.rand((4,3,32,32))
+cfg = ConfigDict()
+cfg.bsz_gpu = 128
+cfg.world_size = 2
+cfg.model_ema = ConfigDict(
+    status = True,
+    steps = 25,
+    decay = 0.99998
+)
+cfg.epochs = 100
+
+def build_ema_model(model, cfg:ConfigDict):
+    model_ema = None
+    if hasattr(cfg, 'model_ema') and cfg.model_ema.status:
+        # total_ema_updates = (Dataset_size / n_GPUs) * epochs / (batch_size_per_gpu * EMA_steps)
+        # We consider constant = Dataset_size for a given dataset/setup and ommit it. Thus:
+        # adjust = 1 / total_ema_updates ~= n_GPUs * batch_size_per_gpu * EMA_steps / epochs
+        adjust = cfg.world_size * cfg.bsz_gpu * cfg.model_ema.steps / cfg.epochs
+        decay = 1.0 - min(1.0, (1.0 - cfg.model_ema.decay) * adjust)
+        model_ema = ExponentialMovingAverage(
+            model,
+            device = 'cuda',
+            decay = decay
+        )
+
+    return model_ema
 model = EfficientNet_Group_Base()
+build_ema_model(model, cfg)
 set_weight_decay(model, weight_decay=2e-5)
-pred = model(x)
 
 transform = baseOnImageNet()
 dataset = Group_ImageFolder('./data/ID/train', groups, groups_range, transform=transform)
