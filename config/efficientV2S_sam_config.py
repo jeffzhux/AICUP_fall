@@ -19,14 +19,16 @@ data = dict(
         root=f'{data_root}/train',
         type = 'AICUP_ImageFolder',
         transform = dict(
-            type='baseOnTrivialAugment'
+            type='baseOnTrivialAugment',
+            size = (300, 300)
         )
     ),
     vaild = dict(
         root=f'{data_root}/valid',
         type = 'AICUP_ImageFolder',
         transform = dict(
-            type='base'
+            type='base',
+            size = (300, 300)
         )
     )
 )
@@ -54,8 +56,8 @@ loss = dict(
     label_smoothing = 0.1
 )
 #train
-epochs = 100#100
-batch_size = 256#256
+epochs = 400#100
+batch_size = 128#256
 
 # optimizer
 lr = 0.01
@@ -82,8 +84,8 @@ lr_cfg = dict(  # passed to adjust_learning_rate(cfg=lr_cfg)
 
 
 #log & save
-log_interval = 100
-save_interval = 20
+log_interval = 200
+save_interval = 50
 work_dir = './experiment/efficient_sam'
 port = 10001
 resume = None # (路徑) 從中斷的地方開始 train

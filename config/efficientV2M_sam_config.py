@@ -20,7 +20,7 @@ data = dict(
         type = 'AICUP_ImageFolder',
         transform = dict(
             type='baseOnTrivialAugment',
-            size = (380, 380)
+            size = (300, 300)
         )
     ),
     vaild = dict(
@@ -28,7 +28,7 @@ data = dict(
         type = 'AICUP_ImageFolder',
         transform = dict(
             type='base',
-            size = (380, 380)
+            size = (300, 300)
         )
     )
 )
@@ -84,8 +84,8 @@ lr_cfg = dict(  # passed to adjust_learning_rate(cfg=lr_cfg)
 
 
 #log & save
-log_interval = 100
-save_interval = 20
+log_interval = 200
+save_interval = 50
 work_dir = './experiment/efficient_sam'
 port = 10001
 resume = None # (路徑) 從中斷的地方開始 train
