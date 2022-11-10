@@ -50,7 +50,7 @@ def get_config(args: argparse.Namespace) -> Config:
 
     return cfg
 
-def load_weights(ckpt_path, model, optimizer, scaler, resume=True) -> int:
+def load_weights(ckpt_path, model, model_ema, optimizer, scaler, resume=True) -> int:
     # load checkpoint
     print("==> Loading checkpoint '{}'".format(ckpt_path))
     assert os.path.isfile(ckpt_path)
@@ -61,11 +61,19 @@ def load_weights(ckpt_path, model, optimizer, scaler, resume=True) -> int:
         model.load_state_dict(checkpoint['model_state'])
         optimizer.load_state_dict(checkpoint['optimizer_state'])
         scaler.load_state_dict(checkpoint['scaler'])
-    else:
-        raise ValueError
 
-    start_epoch = checkpoint['epoch'] + 1
-    print("Loaded. (epoch {})".format(checkpoint['epoch']))
+        if model_ema is not None:
+            model_ema.load_state_dict(checkpoint['model_ema_state'])
+        start_epoch = checkpoint['epoch'] + 1
+        print("Loaded. (epoch {})".format(checkpoint['epoch']))
+    else:
+        # load model & optimizer
+        model.load_state_dict(checkpoint['model_state'])
+
+        if model_ema is not None:
+            model_ema.load_state_dict(checkpoint['model_ema_state'])
+        start_epoch = 1
+
     return start_epoch
 
 def train(model, model_ema, dataloader, criterion, optimizer, epoch, scaler, cfg, logger=None, writer=None):
@@ -251,15 +259,17 @@ def main_worker(rank, world_size, cfg):
     # fp16 or fp32
     scaler = GradScaler() if cfg.amp else None
 
-    start_epoch = 1
-    if cfg.resume:
-        start_epoch = load_weights(cfg.resume, model, scaler, resume=True)
-
     #如果網路當中有不需要backward的find_unused_parameters 要設為 True
     model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[cfg.local_rank], find_unused_parameters=False)
     model_without_ddp = model.module
 
     model_ema = build_ema_model(model_without_ddp, cfg)
+
+    start_epoch = 1
+    if cfg.resume:
+        start_epoch = load_weights(cfg.resume, model, model_ema, scaler, resume=True)
+    elif cfg.load:
+        start_epoch = load_weights(cfg.load, model, model_ema, scaler, resume=False)
     
     for epoch in range(start_epoch, cfg.epochs + 1):
         train_sampler.set_epoch(epoch)
