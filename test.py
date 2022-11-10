@@ -125,6 +125,7 @@ def main_worker(rank, world_size, cfg):
     local_rank = rank % 8
     cfg.local_rank = local_rank
     torch.cuda.set_device(rank)
+    set_seed(cfg.seed+rank, cuda_deterministic=True)
 
     print(f'System : {platform.system()}')
     if platform.system() == 'Windows':
@@ -150,13 +151,13 @@ def main_worker(rank, world_size, cfg):
         drop_last = False
     )
 
-
     model = build_model(cfg.model)
     model.cuda()
     model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[cfg.local_rank])
     tta = TestTimeAugmentation(cfg.test_time_augmentation)
     if cfg.load:
         load_weights(cfg.load, model)
+
     # We disable the cudnn benchmarking because it can noticeably affect the accuracy
     cudnn.benchmark = False
     cudnn.deterministic = True

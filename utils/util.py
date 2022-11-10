@@ -222,10 +222,14 @@ class ExponentialMovingAverage(torch.optim.swa_utils.AveragedModel):
 
         super().__init__(model, device, ema_avg, use_buffers=True)
 
-def set_seed(seed=42):
-    torch.backends.cudnn.deterministic = True
-    torch.backends.cudnn.benchmark = False
-
+def set_seed(seed=42, cuda_deterministic = True):
+    if cuda_deterministic: # slower, more reproducible
+        torch.backends.cudnn.deterministic = True
+        torch.backends.cudnn.benchmark = False
+    else: # faster, less reproducible
+        torch.backends.cudnn.deterministic = False
+        torch.backends.cudnn.benchmark = True
+        
     random.seed(seed)
     np.random.seed(seed)
     torch.manual_seed(seed)

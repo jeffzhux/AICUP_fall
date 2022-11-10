@@ -179,6 +179,7 @@ def main_worker(rank, world_size, cfg):
     local_rank = rank % 8
     cfg.local_rank = local_rank
     torch.cuda.set_device(rank)
+    set_seed(cfg.seed+rank, cuda_deterministic=False)
 
     print(f'System : {platform.system()}')
     if platform.system() == 'Windows':
@@ -222,24 +223,24 @@ def main_worker(rank, world_size, cfg):
     
     # build model
     model = build_model(cfg.model)
-    model.cuda()
-    model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
-    #如果網路當中有不需要backward的find_unused_parameters 要設為 True
-    model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[cfg.local_rank], find_unused_parameters=False)
-    
-    model_ema = build_ema_model(model, cfg)
+    model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model).cuda()
+
     # build criterion
     criterion = build_loss(cfg.loss).cuda()
     # build optimizer
     parameters = set_weight_decay(model, cfg.weight_decay)
     optimizer = build_optimizer(cfg.optimizer, parameters)
 
+    #如果網路當中有不需要backward的find_unused_parameters 要設為 True
+    model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[cfg.local_rank], find_unused_parameters=False)
+    model_without_ddp = model.module
+
+    model_ema = build_ema_model(model_without_ddp, cfg)
+    
     start_epoch = 1
     if cfg.load:
         load_weights(cfg.load, model)
 
-    cudnn.benchmark = True
-    
     for epoch in range(start_epoch, cfg.epochs + 1):
         train_sampler.set_epoch(epoch)
         adjust_learning_rate(cfg.lr_cfg, optimizer.base_optimizer, epoch)
@@ -257,7 +258,7 @@ def main_worker(rank, world_size, cfg):
             model_path = os.path.join(cfg.work_dir, f'epoch_{epoch}.pth')
             state_dict = {
                 'optimizer_state': optimizer.state_dict(),
-                'model_state': model.state_dict(),
+                'model_state': model_without_ddp.state_dict(),
                 'epoch': epoch
             }
             if model_ema:

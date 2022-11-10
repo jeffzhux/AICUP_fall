@@ -50,7 +50,7 @@ def get_config(args: argparse.Namespace) -> Config:
 
     return cfg
 
-def load_weights(ckpt_path, model, optimizer, resume=True) -> int:
+def load_weights(ckpt_path, model, optimizer, scaler, resume=True) -> int:
     # load checkpoint
     print("==> Loading checkpoint '{}'".format(ckpt_path))
     assert os.path.isfile(ckpt_path)
@@ -60,6 +60,7 @@ def load_weights(ckpt_path, model, optimizer, resume=True) -> int:
         # load model & optimizer
         model.load_state_dict(checkpoint['model_state'])
         optimizer.load_state_dict(checkpoint['optimizer_state'])
+        scaler.load_state_dict(checkpoint['scaler'])
     else:
         raise ValueError
 
@@ -89,11 +90,7 @@ def train(model, model_ema, dataloader, criterion, optimizer, epoch, scaler, cfg
         data_time.update(time.time() - iter_end)
 
         # compute output
-        if scaler:
-            with autocast():
-                logits= model(imgs)
-                loss = criterion(logits, labels)
-        else:
+        with autocast(enabled=scaler is not None):
             logits= model(imgs)
             loss = criterion(logits, labels)
 
@@ -105,7 +102,7 @@ def train(model, model_ema, dataloader, criterion, optimizer, epoch, scaler, cfg
 
         # compute gradient and do SGD step
         optimizer.zero_grad()
-        if scaler:
+        if scaler is not None:
             scaler.scale(loss).backward()
             scaler.step(optimizer)
             scaler.update()
@@ -202,6 +199,7 @@ def main_worker(rank, world_size, cfg):
     local_rank = rank % 8
     cfg.local_rank = local_rank
     torch.cuda.set_device(rank)
+    set_seed(cfg.seed+rank, cuda_deterministic=False)
 
     print(f'System : {platform.system()}')
     if platform.system() == 'Windows':
@@ -221,7 +219,6 @@ def main_worker(rank, world_size, cfg):
     print('batch_size per gpu:', cfg.bsz_gpu)
     
     # build dataset
-
     train_set =  build_dataset(cfg.data.train)
     train_collate = build_collate(cfg.data.collate)
     train_sampler = RASampler(train_set, shuffle=True)
@@ -245,28 +242,24 @@ def main_worker(rank, world_size, cfg):
     
     # build model
     model = build_model(cfg.model)
-    model.cuda()
-    model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model)
-    #如果網路當中有不需要backward的find_unused_parameters 要設為 True
-    model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[cfg.local_rank], find_unused_parameters=False)
-    
-    model_ema = build_ema_model(cfg)
-    
+    model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model).cuda()
+
     # build criterion
     criterion = build_loss(cfg.loss).cuda()
     # build optimizer
     optimizer = build_optimizer(cfg.optimizer, model.parameters())
+    # fp16 or fp32
+    scaler = GradScaler() if cfg.amp else None
 
     start_epoch = 1
     if cfg.resume:
-        start_epoch = load_weights(cfg.resume, model, optimizer, resume=True)
+        start_epoch = load_weights(cfg.resume, model, scaler, resume=True)
 
-    cudnn.benchmark = True
+    #如果網路當中有不需要backward的find_unused_parameters 要設為 True
+    model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[cfg.local_rank], find_unused_parameters=False)
+    model_without_ddp = model.module
 
-    if cfg.amp:
-        scaler = GradScaler()
-    else:
-        scaler = None
+    model_ema = build_ema_model(model_without_ddp, cfg)
     
     for epoch in range(start_epoch, cfg.epochs + 1):
         train_sampler.set_epoch(epoch)
@@ -285,9 +278,11 @@ def main_worker(rank, world_size, cfg):
             model_path = os.path.join(cfg.work_dir, f'epoch_{epoch}.pth')
             state_dict = {
                 'optimizer_state': optimizer.state_dict(),
-                'model_state': model.state_dict(),
+                'model_state': model_without_ddp.state_dict(),
                 'epoch': epoch
             }
+            if scaler:
+                state_dict['scaler'] = scaler.state_dict()
             if model_ema:
                 state_dict['model_ema_state'] = model_ema.state_dict()
             torch.save(state_dict, model_path)
