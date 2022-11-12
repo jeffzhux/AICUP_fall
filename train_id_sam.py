@@ -245,8 +245,8 @@ def main_worker(rank, world_size, cfg):
     # build criterion
     criterion = build_loss(cfg.loss).cuda()
     # build optimizer
-    parameters = set_weight_decay(model, cfg.weight_decay)
-    optimizer = build_optimizer(cfg.optimizer, parameters)
+    # parameters = set_weight_decay(model, cfg.weight_decay)
+    optimizer = build_optimizer(cfg.optimizer, model.parameters())
 
     #如果網路當中有不需要backward的find_unused_parameters 要設為 True
     model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[cfg.local_rank], find_unused_parameters=False)

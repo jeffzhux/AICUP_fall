@@ -13,7 +13,7 @@ import torch
 
 
 from torch.utils.tensorboard import SummaryWriter
-from utils.util import AverageMeter, TrackMeter, accuracy, adjust_learning_rate, format_time, set_seed
+from utils.util import AverageMeter, TrackMeter, accuracy, adjust_learning_rate, format_time, set_seed, set_weight_decay
 from utils.build import build_logger
 from datasets.sampler import RASampler
 from datasets.build import build_dataset
@@ -255,7 +255,8 @@ def main_worker(rank, world_size, cfg):
     # build criterion
     criterion = build_loss(cfg.loss).cuda()
     # build optimizer
-    optimizer = build_optimizer(cfg.optimizer, model.parameters())
+    parameters = set_weight_decay(model, cfg.weight_decay)
+    optimizer = build_optimizer(cfg.optimizer, parameters)
     # fp16 or fp32
     scaler = GradScaler() if cfg.amp else None
 
