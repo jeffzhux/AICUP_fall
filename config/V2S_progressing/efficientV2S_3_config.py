@@ -1,5 +1,5 @@
 # init
-seed = 2022
+seed = 3022
 amp = False
 
 #data
@@ -10,7 +10,7 @@ data = dict(
     collate = dict(
         type = 'RandomMixupCutMixCollate',
         num_classes = num_classes,
-        mixup_alpha=0.1
+        mixup_alpha=0.3
     ),
     sampler = dict(
         type='RASampler',
@@ -22,7 +22,7 @@ data = dict(
         type = 'AICUP_ImageFolder',
         transform = dict(
             type='baseOnTrivialAugment',
-            size = (256, 256)
+            size = (224, 224)
         )
     ),
     vaild = dict(
@@ -30,7 +30,7 @@ data = dict(
         type = 'AICUP_ImageFolder',
         transform = dict(
             type='base',
-            size = (256, 256)
+            size = (224, 224)
         )
     )
 )
@@ -47,7 +47,7 @@ model = dict(
     backbone = dict(
         type = 'efficientnet_v2_s',
         weights = 'EfficientNet_V2_S_Weights.IMAGENET1K_V1',
-        dropout_rate = 0.3,
+        dropout_rate = 0.2,
         num_classes = num_classes 
     )
     
@@ -85,7 +85,7 @@ lr_cfg = dict(  # passed to adjust_learning_rate(cfg=lr_cfg)
 
 
 #log & save
-log_interval = 200
+log_interval = 100
 save_interval = 20
 work_dir = './experiment/efficientV2S_Progressing/base1_3'
 port = 10001

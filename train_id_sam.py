@@ -50,14 +50,31 @@ def get_config(args: argparse.Namespace) -> Config:
 
     return cfg
 
-def load_weights(ckpt_path: str, model: nn.Module) -> None:
+def load_weights(ckpt_path, model, model_ema, optimizer, resume=True) -> None:
 
     # load checkpoint 
     print(f"==> Loading Checkpoint {ckpt_path}")
     assert os.path.isfile(ckpt_path), 'file is not exist'
-    ckpt = torch.load(ckpt_path, map_location='cuda')
+    checkpoint = torch.load(ckpt_path, map_location='cuda')
 
-    model.load_state_dict(ckpt['model_state'])
+    if resume:
+        # load model & optimizer
+        model.load_state_dict(checkpoint['model_state'])
+        optimizer.load_state_dict(checkpoint['optimizer_state'])
+
+        if model_ema is not None:
+            model_ema.load_state_dict(checkpoint['model_ema_state'])
+        start_epoch = checkpoint['epoch'] + 1
+        print("Loaded. (epoch {})".format(checkpoint['epoch']))
+    else:
+        # load model & optimizer
+        model.load_state_dict(checkpoint['model_state'])
+
+        if model_ema is not None:
+            model_ema.load_state_dict(checkpoint['model_ema_state'])
+        start_epoch = 1
+
+    return start_epoch
 
 def train(model, model_ema, dataloader, criterion, optimizer, epoch, cfg, logger=None, writer=None):
     model.train() # 開啟batch normalization 和 dropout
@@ -238,9 +255,11 @@ def main_worker(rank, world_size, cfg):
     model_ema = build_ema_model(model_without_ddp, cfg)
     
     start_epoch = 1
-    if cfg.load:
-        load_weights(cfg.load, model)
-
+    if cfg.resume:
+        start_epoch = load_weights(cfg.resume, model_without_ddp, model_ema, optimizer, resume=True)
+    elif cfg.load:
+        start_epoch = load_weights(cfg.load, model_without_ddp, model_ema, optimizer, resume=False)
+    
     for epoch in range(start_epoch, cfg.epochs + 1):
         train_sampler.set_epoch(epoch)
         adjust_learning_rate(cfg.lr_cfg, optimizer.base_optimizer, epoch)

@@ -47,7 +47,7 @@ model = dict(
     backbone = dict(
         type = 'efficientnet_v2_s',
         weights = 'EfficientNet_V2_S_Weights.IMAGENET1K_V1',
-        dropout_rate = 0.3,
+        dropout_rate = 0.1,
         num_classes = num_classes 
     )
     
@@ -85,7 +85,7 @@ lr_cfg = dict(  # passed to adjust_learning_rate(cfg=lr_cfg)
 
 
 #log & save
-log_interval = 200
+log_interval = 100
 save_interval = 20
 work_dir = './experiment/efficientV2S_Progressing/base1_2'
 port = 10001

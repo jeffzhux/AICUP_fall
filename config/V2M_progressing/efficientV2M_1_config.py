@@ -15,7 +15,7 @@ data = dict(
     sampler = dict(
         type='RASampler',
         shuffle = True,
-        repetitions = 4
+        repetitions = 2
     ),
     train = dict(
         root=f'{data_root}/train',
@@ -64,7 +64,7 @@ batch_size = 512#256
 
 # optimizer
 lr = 0.01
-weight_decay = 2e-05
+weight_decay = 1e-4
 optimizer = dict(
     type = 'SGD',
     lr = lr,
@@ -85,9 +85,9 @@ lr_cfg = dict(  # passed to adjust_learning_rate(cfg=lr_cfg)
 
 
 #log & save
-log_interval = 200
+log_interval = 100
 save_interval = 20
-work_dir = './experiment/efficientV2S_Progressing/base1_1'
+work_dir = './experiment/efficientV2M_Progressing/base1_1'
 port = 10001
 resume = None # (路徑) 從中斷的地方開始 train
 load = None # (路徑) 載入訓練好的模型 test

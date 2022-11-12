@@ -267,9 +267,9 @@ def main_worker(rank, world_size, cfg):
 
     start_epoch = 1
     if cfg.resume:
-        start_epoch = load_weights(cfg.resume, model, model_ema, scaler, resume=True)
+        start_epoch = load_weights(cfg.resume, model_without_ddp, model_ema, optimizer, scaler, resume=True)
     elif cfg.load:
-        start_epoch = load_weights(cfg.load, model, model_ema, scaler, resume=False)
+        start_epoch = load_weights(cfg.load, model_without_ddp, model_ema, optimizer, scaler, resume=False)
     
     for epoch in range(start_epoch, cfg.epochs + 1):
         train_sampler.set_epoch(epoch)

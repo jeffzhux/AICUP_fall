@@ -1,5 +1,5 @@
 # init
-seed = 1022
+seed = 3022
 amp = False
 
 #data
@@ -10,7 +10,7 @@ data = dict(
     collate = dict(
         type = 'RandomMixupCutMixCollate',
         num_classes = num_classes,
-        mixup_alpha=0.1
+        mixup_alpha=0.3
     ),
     sampler = dict(
         type='RASampler',
@@ -22,7 +22,7 @@ data = dict(
         type = 'AICUP_ImageFolder',
         transform = dict(
             type='baseOnTrivialAugment',
-            size = (128, 128)
+            size = (300, 300)
         )
     ),
     vaild = dict(
@@ -30,7 +30,7 @@ data = dict(
         type = 'AICUP_ImageFolder',
         transform = dict(
             type='base',
-            size = (128, 128)
+            size = (300, 300)
         )
     )
 )
@@ -47,7 +47,7 @@ model = dict(
     backbone = dict(
         type = 'efficientnet_v2_s',
         weights = 'EfficientNet_V2_S_Weights.IMAGENET1K_V1',
-        dropout_rate = 0.1,
+        dropout_rate = 0.5,
         num_classes = num_classes 
     )
     
@@ -59,14 +59,16 @@ loss = dict(
     label_smoothing = 0.1
 )
 #train
-epochs = 100#100
-batch_size = 512#256
+epochs = 25#100
+batch_size = 128#256
 
 # optimizer
-lr = 0.01
-weight_decay = 2e-05
+lr = 0.005
+weight_decay = 1e-4
 optimizer = dict(
-    type = 'SGD',
+    type = 'SAM',
+    rho = 2.0,
+    adaptive = True,
     lr = lr,
     momentum = 0.9,
     weight_decay = weight_decay,
@@ -79,16 +81,16 @@ lr_cfg = dict(  # passed to adjust_learning_rate(cfg=lr_cfg)
     decay_rate=0.1,
     # decay_steps=[100, 150]
     #start_step=0,
-    warmup_steps=10, # 100
-    warmup_from=lr * 0.1
+    warmup_steps=0, # 100
+    # warmup_from=lr * 0.1
 )
 
 
 #log & save
 log_interval = 200
-save_interval = 20
-work_dir = './experiment/efficientV2S_Progressing/base1_1'
+save_interval = 5
+work_dir = './experiment/efficientV2M_Progressing/base1_3'
 port = 10001
 resume = None # (路徑) 從中斷的地方開始 train
-load = None # (路徑) 載入訓練好的模型 test
+load =  None# (路徑) 載入訓練好的模型 test
 

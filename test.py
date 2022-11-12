@@ -12,7 +12,7 @@ import torch.backends.cudnn as cudnn
 
 from datasets.build import build_dataset
 from datasets.collates.build import build_collate
-from models.build import build_model
+from models.build import build_model, build_ema_model
 from utils.config import Config
 from utils.util import Metric, accuracy, set_seed
 from utils.build import build_logger
@@ -47,7 +47,7 @@ def get_config(args: argparse.Namespace) -> Config:
 
     return cfg
 
-def load_weights(ckpt_path: str, model: nn.Module) -> None:
+def load_weights(ckpt_path: str, model: nn.Module, model_ema: nn.Module) -> None:
 
     # load checkpoint 
     print(f"==> Loading Checkpoint {ckpt_path}")
@@ -55,7 +55,7 @@ def load_weights(ckpt_path: str, model: nn.Module) -> None:
     ckpt = torch.load(ckpt_path, map_location='cuda')
 
     model.load_state_dict(ckpt['model_state'])
-
+    model_ema.load_state_dict(ckpt['model_ema_state'])
 @torch.no_grad()
 def iterate_data(model, dataloader, tta, cfg):
     
@@ -103,8 +103,7 @@ def run_eval(model, test_loader, tta, cfg):
         target = torch.argmax(target, dim=-1)
     else:
         pred_class = F.softmax(pred_class, dim=-1)
-    print(pred_class.size())
-    print(target.size())
+
     metrix = Metric(pred_class.size(-1))
     metrix.update(pred_class, target)
     recall = metrix.recall('none')
@@ -135,15 +134,16 @@ def main_worker(rank, world_size, cfg):
         dist.init_process_group(backend='nccl', init_method=f'tcp://localhost:{cfg.port}',
                             world_size=world_size, rank=rank)
 
-    bsz_gpu = int(cfg.batch_size / cfg.world_size)
-    print('batch_size per gpu:', bsz_gpu)
+    cfg.bsz_gpu = int(cfg.batch_size / cfg.world_size)
+    cfg.epochs = 1
+    print('batch_size per gpu:', cfg.bsz_gpu)
 
     test_set = build_dataset(cfg.data.test)
     print(test_set.class_to_idx)
     test_collate = build_collate(cfg.data.collate)
     test_loader = torch.utils.data.DataLoader(
         test_set,
-        batch_size = bsz_gpu,
+        batch_size = cfg.bsz_gpu,
         num_workers = cfg.num_workers,
         shuffle = False,
         collate_fn = test_collate,
@@ -153,20 +153,27 @@ def main_worker(rank, world_size, cfg):
 
     model = build_model(cfg.model)
     model.cuda()
+    
+    
     model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[cfg.local_rank])
     tta = TestTimeAugmentation(cfg.test_time_augmentation)
-    if cfg.load:
-        load_weights(cfg.load, model)
+    model_without_ddp = model.module
+    
 
     # We disable the cudnn benchmarking because it can noticeably affect the accuracy
     cudnn.benchmark = False
     cudnn.deterministic = True
     
+    model_ema = build_ema_model(model_without_ddp, cfg)
+    model_ema = model_ema.cuda()
+    if cfg.load:
+        load_weights(cfg.load, model_without_ddp, model_ema)
+
     print(f"==> Start testing ....")
     model.eval()
     # with torch.inference_mode:
     run_eval(model, test_loader, tta, cfg)
-
+    # run_eval(model_ema, test_loader, tta, cfg)
 def main():
     args = get_args()
     cfg = get_config(args)
