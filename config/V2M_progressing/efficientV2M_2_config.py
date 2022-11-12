@@ -45,8 +45,8 @@ model_ema = dict(
 model = dict(
     type="EfficientNet_Base",
     backbone = dict(
-        type = 'efficientnet_v2_s',
-        weights = 'EfficientNet_V2_S_Weights.IMAGENET1K_V1',
+        type = 'efficientnet_v2_m',
+        weights = 'EfficientNet_V2_M_Weights.IMAGENET1K_V1',
         dropout_rate = 0.3,
         num_classes = num_classes 
     )
