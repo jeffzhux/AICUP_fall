@@ -14,7 +14,7 @@ class CollateFunction(nn.Module):
         
         images, labels = zip(*batch)
         images = torch.stack(images)
-        labels = torch.tensor(labels)
+        labels = torch.stack(labels)
         return images, labels
 
 class RandomMixupCutMixCollate(nn.Module):

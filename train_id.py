@@ -255,8 +255,8 @@ def main_worker(rank, world_size, cfg):
     # build criterion
     criterion = build_loss(cfg.loss).cuda()
     # build optimizer
-    parameters = set_weight_decay(model, cfg.weight_decay)
-    optimizer = build_optimizer(cfg.optimizer, parameters)
+    # parameters = set_weight_decay(model, cfg.weight_decay)
+    optimizer = build_optimizer(cfg.optimizer, model.parameters())
     # fp16 or fp32
     scaler = GradScaler() if cfg.amp else None
 
