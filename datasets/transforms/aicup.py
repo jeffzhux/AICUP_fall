@@ -71,7 +71,7 @@ def baseOnImageNet(size: Tuple = (224,224)):
     ])
     return transform
 
-def baseOnTrivialAugment(size: Tuple = (224,224), lighting: bool = False):
+def baseOnTrivialAugment(size: Tuple = (224,224), lighting: float = 0):
     trans_list = [
         T.RandomResizedCrop(size, interpolation = InterpolationMode.BILINEAR),
         T.RandomHorizontalFlip(),
@@ -79,12 +79,12 @@ def baseOnTrivialAugment(size: Tuple = (224,224), lighting: bool = False):
         T.ToTensor()
     ]
     if lighting:
-        trans_list.append(Lighting())
+        trans_list.append(Lighting(lighting))
     trans_list.extend([
         T.Normalize(imagenet_normalize['mean'], imagenet_normalize['std']),
         T.RandomErasing(p=0.1)
     ])
-    transform = transforms.Compose()
+    transform = transforms.Compose(trans_list)
     return transform
 
 

@@ -3,8 +3,8 @@ import torch
 class Lighting(object):
     """Lighting noise(AlexNet - style PCA - based noise)"""
 
-    def __init__(self):
-        self.alphastd = torch.Tensor([0.229, 0.224, 0.225])
+    def __init__(self,alphastd):
+        self.alphastd = alphastd
         self.eigval = torch.Tensor([0.2175, 0.0188, 0.0045])
         self.eigvec = torch.Tensor([
                 [-0.5675,  0.7192,  0.4009],
@@ -13,7 +13,7 @@ class Lighting(object):
             ])
 
     def __call__(self, img):
-        if self.alphastd == 0:
+        if self.alphastd == 0.:
             return img
 
         alpha = img.new().resize_(3).normal_(0, self.alphastd)

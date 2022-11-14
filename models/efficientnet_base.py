@@ -1,6 +1,4 @@
 import torch.nn as nn
-# from mmcls.models.backbones import EfficientNet
-# from mmcls.models.necks import GlobalAveragePooling
 from utils.config import ConfigDict
 import torchvision
 
