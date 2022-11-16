@@ -335,8 +335,7 @@ def main_worker(rank, world_size, cfg):
             all_boxes = update_box(model, cc_loader, cc_train_set, cfg.box_thresh, logger)
             assert len(all_boxes) == len(train_set)
             train_set.boxes = all_boxes.cpu()
-        else:
-            print(train_set.boxes)
+
         # save ckpt; master process
         if rank == 0 and epoch % cfg.save_interval == 0:
             model_path = os.path.join(cfg.work_dir, f'epoch_{epoch}.pth')

@@ -91,7 +91,6 @@ class CCrop_ImageFolder(ImageFolder):
         path, target = self.samples[index]
         sample = self.loader(path)
         if self.transform is not None:
-            print(self.boxes[index].float())
             box = self.boxes[index].float().tolist()
             sample = self.transform([sample, box])
 

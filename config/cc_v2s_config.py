@@ -72,7 +72,7 @@ loss = dict(
 # boxes
 warmup_epochs = 5#10
 loc_interval = 20#20
-box_thresh = 0.1
+box_thresh = 0.2
 
 #train
 epochs = 100
