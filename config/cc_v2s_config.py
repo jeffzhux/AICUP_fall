@@ -1,5 +1,5 @@
 # init
-seed = 2022
+seed = 1022
 amp = False
 
 #data
@@ -10,7 +10,7 @@ data = dict(
     collate = dict(
         type = 'RandomMixupCutMixCollate',
         num_classes = num_classes,
-        mixup_alpha=0.2
+        mixup_alpha=0.1
     ),
     sampler = dict(
         type='RASampler',
@@ -18,12 +18,21 @@ data = dict(
         repetitions = 4
     ),
     train = dict(
-        root=f'{data_root}/train',
+        root=f'{data_root}/valid',
+        type = 'CCrop_ImageFolder',
+        transform = dict(
+            type='baseOnContrasive',
+            size = (128, 128),
+            alpha = 0.6,
+            lighting = 0.1
+        )
+    ),
+    cc_train = dict(
+        root=f'{data_root}/valid',
         type = 'AICUP_ImageFolder',
         transform = dict(
-            type='baseOnTrivialAugment',
-            size = (224, 224),
-            lighting = 0.1
+            type='base',
+            size = (128, 128)
         )
     ),
     vaild = dict(
@@ -31,7 +40,7 @@ data = dict(
         type = 'AICUP_ImageFolder',
         transform = dict(
             type='base',
-            size = (224, 224)
+            size = (128, 128)
         )
     )
 )
@@ -48,7 +57,7 @@ model = dict(
     backbone = dict(
         type = 'efficientnet_v2_s',
         weights = 'EfficientNet_V2_S_Weights.IMAGENET1K_V1',
-        dropout_rate = 0.2,
+        dropout_rate = 0.1,
         num_classes = num_classes 
     )
     
@@ -59,12 +68,18 @@ loss = dict(
     type = 'CrossEntropyLoss',
     label_smoothing = 0.1
 )
+
+# boxes
+warmup_epochs = 5#10
+loc_interval = 20#20
+box_thresh = 0.1
+
 #train
-epochs = 100#100
-batch_size = 256#256
+epochs = 100
+batch_size = 512
 
 # optimizer
-lr = 0.005
+lr = 0.03
 weight_decay = 1e-4
 optimizer = dict(
     type = 'SGD',
@@ -80,16 +95,16 @@ lr_cfg = dict(  # passed to adjust_learning_rate(cfg=lr_cfg)
     decay_rate=0.1,
     # decay_steps=[100, 150]
     #start_step=0,
-    warmup_steps=0, # 100
-    # warmup_from=lr * 0.1
+    warmup_steps=5, # 100
+    warmup_from=lr * 0.1
 )
 
 
 #log & save
-log_interval = 100
+log_interval = 200
 save_interval = 20
-work_dir = './experiment/efficientV2S_Progressing2/base1_2'
+work_dir = './experiment/efficientV2S_cc'
 port = 10001
 resume = None # (路徑) 從中斷的地方開始 train
-load = './experiment/efficientV2S_Progressing2/base1_1/20221114_110619/epoch_100.pth' # (路徑) 載入訓練好的模型 test
+load = None # (路徑) 載入訓練好的模型 test
 

@@ -66,6 +66,40 @@ class AICUP_ImageFolder(ImageFolder):
         target = target.type(torch.float32)
         return sample, target
 
+class CCrop_ImageFolder(ImageFolder):
+    def __init__(
+        self,
+        root: str,
+        init_box = [0., 0., 1., 1.],
+        transform: Optional[Callable] = None,
+        target_transform: Optional[Callable] = None
+    ):
+        super().__init__(
+            root,
+            transform=transform,
+            target_transform=target_transform
+        )
+        self.num_of_classes = len(self.classes)
+        self.boxes = torch.tensor(init_box).repeat(self.__len__(), 1)
+    def __getitem__(self, index: int) -> Tuple[Any, Any]:
+        """
+        Args:
+            index (int): Index
+        Returns:
+            tuple: (sample, target) where target is class_index of the target class.
+        """
+        path, target = self.samples[index]
+        sample = self.loader(path)
+        if self.transform is not None:
+            print(self.boxes[index].float())
+            box = self.boxes[index].float().tolist()
+            sample = self.transform([sample, box])
+
+        target = torch.tensor(target)
+        target = F.one_hot(target, self.num_of_classes)
+        target = target.type(torch.float32)
+        return sample, target
+
 class TestTimeAICUP_DataSet(ImageFolder):
     """A generic data loader where the images are arranged in this way by default: ::
 

@@ -47,7 +47,7 @@ model = dict(
 )
 
 # test
-batch_size = 16
+batch_size = 32
 
 #log & save
 work_dir = './test_experiment/efficient'

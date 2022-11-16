@@ -22,7 +22,8 @@ data = dict(
         type = 'AICUP_ImageFolder',
         transform = dict(
             type='baseOnTrivialAugment',
-            size = (128, 128)
+            size = (128, 128),
+            lighting = 0.1
         )
     ),
     vaild = dict(

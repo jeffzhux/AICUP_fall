@@ -1,3 +1,4 @@
 from datasets.dataset import AICUP_ImageFolder
 from datasets.dataset import Group_ImageFolder
 from datasets.dataset import TestTimeAICUP_DataSet
+from datasets.dataset import CCrop_ImageFolder

@@ -165,7 +165,6 @@ def main_worker(rank, world_size, cfg):
     cudnn.deterministic = True
     
     model_ema = build_ema_model(model_without_ddp, cfg)
-    model_ema = model_ema.cuda()
     if cfg.load:
         load_weights(cfg.load, model_without_ddp, model_ema)
 

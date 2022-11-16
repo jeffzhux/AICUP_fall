@@ -22,7 +22,8 @@ data = dict(
         type = 'AICUP_ImageFolder',
         transform = dict(
             type='baseOnTrivialAugment',
-            size = (300, 300)
+            size = (300, 300),
+            lighting = 0.1
         )
     ),
     vaild = dict(
@@ -47,7 +48,7 @@ model = dict(
     backbone = dict(
         type = 'efficientnet_v2_s',
         weights = 'EfficientNet_V2_S_Weights.IMAGENET1K_V1',
-        dropout_rate = 0.3,
+        dropout_rate = 0.4,
         num_classes = num_classes 
     )
     
@@ -63,8 +64,8 @@ epochs = 25#100
 batch_size = 128#256
 
 # optimizer
-lr = 0.005
-weight_decay = 2e-05
+lr = 0.0025
+weight_decay = 1e-04
 optimizer = dict(
     type = 'SAM',
     rho = 2.0,
@@ -92,5 +93,5 @@ save_interval = 5
 work_dir = './experiment/efficientV2S_Progressing2/base1_3'
 port = 10001
 resume = None # (路徑) 從中斷的地方開始 train
-load = './experiment/efficientV2S_Progressing2/base1_3/20221111_112531/epoch_100.pth' # (路徑) 載入訓練好的模型 test
+load = './experiment/efficientV2S_Progressing2/base1_2/20221114_233151/epoch_100.pth' # (路徑) 載入訓練好的模型 test
 
