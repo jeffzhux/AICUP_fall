@@ -5,7 +5,7 @@ amp = False
 #data
 data_root = './data/ID'
 num_workers = 8
-num_classes = 33
+num_classes = 2
 data = dict(
     collate = dict(
         type = 'RandomMixupCutMixCollate',
@@ -13,31 +13,22 @@ data = dict(
         mixup_alpha=0.1
     ),
     sampler = dict(
-        type='RASampler',
+        type='OOD_Sampler',
         shuffle = True,
-        repetitions = 4
+        repetitions = 1
     ),
     train = dict(
-        root=f'{data_root}/valid',
-        type = 'CCrop_ImageFolder',
+        root=f'{data_root}/train',
+        type = 'OOD_ImageFolder',
         transform = dict(
-            type='baseOnContrasive',
+            type='baseOnTrivialAugment',
             size = (128, 128),
-            alpha = 0.6,
             lighting = 0.1
-        )
-    ),
-    cc_train = dict(
-        root=f'{data_root}/valid',
-        type = 'AICUP_ImageFolder',
-        transform = dict(
-            type='base',
-            size = (128, 128)
         )
     ),
     vaild = dict(
         root=f'{data_root}/valid',
-        type = 'AICUP_ImageFolder',
+        type = 'OOD_ImageFolder',
         transform = dict(
             type='base',
             size = (128, 128)
@@ -65,18 +56,11 @@ model = dict(
 
 # loss
 loss = dict(
-    type = 'CrossEntropyLoss',
-    label_smoothing = 0.1
+    type = 'BCEWithLogitsLoss'
 )
-
-# boxes
-warmup_epochs = 5#10
-loc_interval = 20#20
-box_thresh = 0.2
-
 #train
-epochs = 100
-batch_size = 512
+epochs = 1#100
+batch_size = 16#512
 
 # optimizer
 lr = 0.03
@@ -103,7 +87,7 @@ lr_cfg = dict(  # passed to adjust_learning_rate(cfg=lr_cfg)
 #log & save
 log_interval = 200
 save_interval = 20
-work_dir = './experiment/efficientV2S_cc'
+work_dir = './ood_experiment/efficientV2S'
 port = 10001
 resume = None # (路徑) 從中斷的地方開始 train
 load = None # (路徑) 載入訓練好的模型 test

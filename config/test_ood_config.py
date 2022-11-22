@@ -15,6 +15,18 @@ data = dict(
     collate = dict(
         type = 'TestTimeCollate',
     ),
+    train = dict(
+        root=f'{data_root}/ID/train',
+        type = 'TestTimeAICUP_DataSet',
+        transform = dict(
+            type='base',
+        ),
+        base_transform = dict(
+            type='base',
+            size = (352, 352)
+        ),
+        num_of_trans = 0
+    ),
     test = dict(
         root=f'{data_root}/ID/valid',
         type = 'TestTimeAICUP_DataSet',
@@ -23,7 +35,7 @@ data = dict(
         ),
         base_transform = dict(
             type='base',
-            size = (448, 448)
+            size = (224, 224)
         ),
         num_of_trans = test_time_augmentation['num_of_trans']
     )
@@ -52,7 +64,7 @@ batch_size = 32
 #log & save
 output_file_name = None#'submission'
 work_dir = './test_experiment/efficient'
-load = './experiment/efficientV2S/20221121_114020/epoch_25.pth' 
+load = './experiment/efficientV2S/20221120_201850/epoch_100.pth' 
 # load = './experiment/efficientV2S/20221118_230640/epoch_100.pth' # 8742 224,224
 # load = './experiment/efficientV2S/20221119_220253/epoch_100.pth' # 8922 356,356
 port = 10001

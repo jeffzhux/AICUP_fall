@@ -4,9 +4,8 @@ import torchvision.transforms as T
 from PIL import ImageDraw
 import math
 import random
-from datasets.transforms.misc import CCompose
 from torchvision.transforms.functional import InterpolationMode
-from datasets.transforms.augmentations import Lighting, ContrastiveCrop
+from datasets.transforms.augmentations import Lighting
 
 imagenet_normalize = {
     'mean': [0.485, 0.456, 0.406],
@@ -86,22 +85,6 @@ def baseOnTrivialAugment(size: Tuple = (224,224), lighting: float = 0):
         T.RandomErasing(p=0.1)
     ])
     transform = transforms.Compose(trans_list)
-    return transform
-
-def baseOnContrasive(size: Tuple = (224,224), alpha=0.6, lighting: float = 0):
-    trans_list = [
-        ContrastiveCrop(alpha=alpha, size=224, scale=(0.2, 1.0)),
-        T.RandomHorizontalFlip(),
-        T.TrivialAugmentWide(interpolation=InterpolationMode.BILINEAR),
-        T.ToTensor()
-    ]
-    if lighting:
-        trans_list.append(Lighting(lighting))
-    trans_list.extend([
-        T.Normalize(imagenet_normalize['mean'], imagenet_normalize['std']),
-        T.RandomErasing(p=0.1)
-    ])
-    transform = CCompose(trans_list)
     return transform
 
 def fixFineTune(resize: Tuple = (320,320), cropsize: Tuple = (224, 224)):

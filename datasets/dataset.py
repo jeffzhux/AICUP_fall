@@ -66,11 +66,10 @@ class AICUP_ImageFolder(ImageFolder):
         target = target.type(torch.float32)
         return sample, target
 
-class CCrop_ImageFolder(ImageFolder):
+class OOD_ImageFolder(ImageFolder):
     def __init__(
         self,
         root: str,
-        init_box = [0., 0., 1., 1.],
         transform: Optional[Callable] = None,
         target_transform: Optional[Callable] = None
     ):
@@ -79,8 +78,8 @@ class CCrop_ImageFolder(ImageFolder):
             transform=transform,
             target_transform=target_transform
         )
-        self.num_of_classes = len(self.classes)
-        self.boxes = torch.tensor(init_box).repeat(self.__len__(), 1)
+
+        self.num_of_classes = 2
     def __getitem__(self, index: int) -> Tuple[Any, Any]:
         """
         Args:
@@ -91,10 +90,10 @@ class CCrop_ImageFolder(ImageFolder):
         path, target = self.samples[index]
         sample = self.loader(path)
         if self.transform is not None:
-            box = self.boxes[index].float().tolist()
-            sample = self.transform([sample, box])
+            sample = self.transform(sample)
 
         target = torch.tensor(target)
+        target = torch.where(target == self.class_to_idx['others'], 1, 0)
         target = F.one_hot(target, self.num_of_classes)
         target = target.type(torch.float32)
         return sample, target

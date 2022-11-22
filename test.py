@@ -2,6 +2,7 @@ import os
 import platform
 import argparse
 import time
+import csv
 
 import torch
 import torch.nn as nn
@@ -30,7 +31,7 @@ def get_config(args: argparse.Namespace) -> Config:
 
     cfg.timestamp = time.strftime('%Y%m%d_%H%M%S', time.localtime())
 
-    cfg.work_dir = os.path.join(cfg.work_dir, f'{cfg.timestamp}')
+    # cfg.work_dir = os.path.join(cfg.work_dir, f'{cfg.timestamp}')
 
     # worker
     cfg.num_workers = min(cfg.num_workers, mp.cpu_count()-2)
@@ -117,6 +118,36 @@ def run_eval(model, test_loader, tta, cfg):
     print(f1_score)
     print(f'acc : {acc.mean().item()}')
     print(f'wp : {wp.item()}')
+    
+@torch.no_grad()
+def run_inference(model, dataloader, dataset, cfg):
+    pred_class = []
+    idx_to_classes = {
+        0: 'asparagus', 1: 'bambooshoots', 2: 'betel', 3: 'broccoli', 4: 'cauliflower', 5: 'chinesecabbage',
+        6: 'chinesechives', 7: 'custardapple', 8: 'grape', 9: 'greenhouse', 10: 'greenonion', 11: 'kale',
+        12: 'lemon', 13: 'lettuce', 14: 'litchi', 15: 'longan', 16: 'loofah', 17: 'mango', 18: 'onion', 19: 'others',
+        20: 'papaya', 21: 'passionfruit', 22: 'pear', 23: 'pennisetum', 24: 'redbeans',25: 'roseapple', 26: 'sesbania',
+        27: 'soybeans', 28: 'sunhemp', 29: 'sweetpotato', 30: 'taro', 31: 'tea', 32: 'waterbamboo'}
+    
+    for idx, (images, _) in enumerate(dataloader):
+        images = images.float().cuda()
+
+        # forward
+        logits = model(images)
+        logits = F.softmax(logits, dim=-1)
+        logits = torch.argmax(logits, dim=-1).cpu().tolist()
+        
+        pred_class.extend(logits)
+        
+    pred_class = list(map(lambda x: idx_to_classes[x], pred_class))
+    file_name_list = list(map(lambda x: x[0].split('\\')[-1], dataset.imgs))
+    
+    assert len(pred_class)== len(file_name_list), f'pred len is {len(pred_class)}, but file_name_list len is {len(file_name_list)}'
+    with open(os.path.join(cfg.work_dir, f'{cfg.output_file_name}.csv'), 'w', newline='') as f:
+        writer = csv.writer(f)
+        writer.writerows([['filename', 'label']])
+        writer.writerows(zip(file_name_list, pred_class))
+    return pred_class
 
 def main_worker(rank, world_size, cfg):
     print(f'==> start rank: {rank}')
@@ -171,7 +202,11 @@ def main_worker(rank, world_size, cfg):
     print(f"==> Start testing ....")
     model.eval()
     # with torch.inference_mode:
-    run_eval(model, test_loader, tta, cfg)
+    if cfg.output_file_name is not None:
+        run_inference(model, test_loader, test_set, cfg)
+    else:
+        run_eval(model, test_loader, tta, cfg)
+        
     # run_eval(model_ema, test_loader, tta, cfg)
 def main():
     args = get_args()
@@ -180,10 +215,6 @@ def main():
     world_size= torch.cuda.device_count()
     print(f'GPUs on this node: {world_size}')
     cfg.world_size = world_size
-    
-    log_file = os.path.join(cfg.work_dir, f'{cfg.timestamp}.cfg')
-    with open(log_file, 'a') as f:
-        f.write(cfg.pretty_text)
 
     mp.spawn(main_worker, nprocs=world_size, args=(world_size, cfg))
 if __name__ == '__main__':

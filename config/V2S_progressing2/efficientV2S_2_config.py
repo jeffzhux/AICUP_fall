@@ -91,5 +91,5 @@ save_interval = 20
 work_dir = './experiment/efficientV2S_Progressing2/base1_2'
 port = 10001
 resume = None # (路徑) 從中斷的地方開始 train
-load = './experiment/efficientV2S_Progressing2/base1_1/20221114_110619/epoch_100.pth' # (路徑) 載入訓練好的模型 test
+load = './experiment/efficientV2S_Progressing2/base1_1/20221120_141210/epoch_100.pth' # (路徑) 載入訓練好的模型 test
 
