@@ -17,24 +17,31 @@ class MixUpLoss(nn.Module):
 class OSDALoss(nn.Module):
     def __init__(self, t=0.5, **args) -> None:
         super(OSDALoss, self).__init__()
-        self.criterion = nn.CrossEntropyLoss(**args)
+        self.cls_criterion = nn.CrossEntropyLoss(**args)
+        self.trans_criterion = nn.BCELoss()
         self.t = t
         
 
     def forward(self, s_logits, t_logits, s_label, t_label):
-        batch_size = s_logits.size(0)
-       
+        
         t_softmax = F.softmax(t_logits, dim=1)
-        unknow_class_prob = t_softmax[:, -1]
-        know_class_prob = 1. - unknow_class_prob
+        t_softmax = torch.cat((t_softmax[:,:-1].sum(-1, keepdim=True), t_softmax[:,-1:]),dim=1)
+        batch_size = s_logits.size(0)
+        t_label = torch.cat((
+            torch.ones((batch_size,1), device=t_logits.device) * (1-self.t),
+            torch.ones((batch_size,1), device=t_logits.device) * self.t
+        ), dim=1)
+        # unknow_class_prob = t_softmax[:, -1]
+        # know_class_prob = 1. - unknow_class_prob
 
-        unknow_target = torch.ones((batch_size,1), device=t_logits.device) * self.t
-        know_target = 1. - unknow_target
+        # unknow_target = torch.ones((batch_size,1), device=t_logits.device) * self.t
+        # know_target = 1. - unknow_target
 
-        trans_loss = - torch.mean(unknow_target * torch.log(unknow_class_prob + 1e-6)) \
-                     - torch.mean(know_target * torch.log(know_class_prob + 1e-6))
-
-        cls_loss = self.criterion(s_logits, s_label)
+        # trans_loss = - torch.mean(unknow_target * torch.log(unknow_class_prob + 1e-6)) \
+        #              - torch.mean(know_target * torch.log(know_class_prob + 1e-6))
+        
+        trans_loss = self.trans_criterion(t_softmax, t_label)
+        cls_loss = self.cls_criterion(s_logits, s_label)
         return cls_loss + trans_loss
 
 class GroupLoss(nn.Module):

@@ -77,7 +77,7 @@ valid_loss = dict(
 )
 #train
 epochs = 1#100
-batch_size = 16#512
+batch_size = 32#512
 
 # optimizer
 lr = 0.03

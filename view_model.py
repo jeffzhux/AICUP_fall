@@ -90,10 +90,6 @@ class OSDANet(nn.Module):
         num_classes = backbone_args.pop('num_classes')
         dropout_rate =  backbone_args.pop('dropout_rate') if backbone_args.get('dropout_rate') != None else None
         self.backbone = getattr(torchvision.models, backbone_name)(**backbone_args)
-        for name, param in self.backbone.named_children():
-            print(name)
-            print(param)
-            print('------------------------')
         if dropout_rate != None:
             self.backbone.classifier[-2].p = dropout_rate
         self.backbone.classifier[-1] = nn.Linear(self.backbone.classifier[-1].in_features, num_classes)
@@ -124,3 +120,9 @@ test_loader = torch.utils.data.DataLoader(
     drop_last = False
 )
 
+a = torch.tensor([
+    [1,2,4],
+    [3,4,5]
+])
+
+print(torch.sum(a[:,:-1], dim=-1))

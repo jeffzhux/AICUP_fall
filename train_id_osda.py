@@ -82,7 +82,6 @@ def train(model, model_ema, dataloader, criterion, optimizer, epoch, scaler, cfg
     data_time = AverageMeter()
     losses = AverageMeter()
     top1 = AverageMeter()
-    t_top1 = AverageMeter()
 
     num_iter = len(dataloader)
     iter_end = time.time()
@@ -93,7 +92,7 @@ def train(model, model_ema, dataloader, criterion, optimizer, epoch, scaler, cfg
         s_labels = s_labels.cuda(non_blocking=True)
 
         t_imgs = t_imgs.cuda(non_blocking=True)
-        t_labels = t_labels.cuda(non_blocking=True)
+        # t_labels = t_labels.cuda(non_blocking=True)
 
         batch_size = s_imgs.size(0)
 
@@ -111,9 +110,7 @@ def train(model, model_ema, dataloader, criterion, optimizer, epoch, scaler, cfg
 
         # accurate
         acc1, acc5 = accuracy(s_logits, s_labels, topk=(1,5))
-        t_acc1, acc5 = accuracy(t_logits, t_labels, topk=(1,5))
         top1.update(acc1.item(), batch_size)
-        t_top1.update(t_acc1.item(), batch_size)
 
         # compute gradient and do SGD step
         optimizer.zero_grad()
@@ -145,6 +142,7 @@ def train(model, model_ema, dataloader, criterion, optimizer, epoch, scaler, cfg
                         f'loss(loss avg): {loss:.3f}({losses.avg:.3f}),  '
                         f'train_Acc@1: {top1.avg:.3f}  '
             )
+        break
     if logger is not None: 
         now = time.time()
         epoch_time = format_time(now - epoch_end)
@@ -154,10 +152,9 @@ def train(model, model_ema, dataloader, criterion, optimizer, epoch, scaler, cfg
     
     if writer is not None:
         lr = optimizer.param_groups[0]['lr']
-        writer.add_scalar('OSDA/lr', lr, epoch)
-        writer.add_scalar('OSDA/loss', losses.avg, epoch)
-        writer.add_scalar('OSDA/OSacc@1', top1.avg, epoch)
-        writer.add_scalar('OSDA/OS*acc@1', t_top1.avg, epoch)
+        writer.add_scalar('Train/lr', lr, epoch)
+        writer.add_scalar('Train/loss', losses.avg, epoch)
+        writer.add_scalar('Train/OSacc@1', top1.avg, epoch)
 
 def valid(model, dataloader, criterion, optimizer, epoch, cfg, logger, writer):
     model.eval() # 開啟batch normalization 和 dropout
