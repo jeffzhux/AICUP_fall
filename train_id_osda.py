@@ -275,7 +275,8 @@ def main_worker(rank, world_size, cfg):
     model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model).cuda()
 
     # build criterion
-    criterion = build_loss(cfg.loss).cuda()
+    train_criterion = build_loss(cfg.train_loss).cuda()
+    valid_criterion = build_loss(cfg.valid_loss).cuda()
     # build optimizer
     # parameters = set_weight_decay(model, cfg.weight_decay)
     optimizer = build_optimizer(cfg.optimizer, model.parameters())
@@ -305,12 +306,12 @@ def main_worker(rank, world_size, cfg):
         adjust_learning_rate(cfg.lr_cfg, optimizer, epoch)
 
         # train; all processes
-        train(model, model_ema, train_loader, criterion, optimizer, epoch, scaler, cfg, logger, writer)
+        # train(model, model_ema, train_loader, train_criterion, optimizer, epoch, scaler, cfg, logger, writer)
         
         if model_ema:
-            valid(model_ema, valid_loader, criterion, optimizer, epoch, cfg, logger, writer)
+            valid(model_ema, valid_loader, valid_criterion, optimizer, epoch, cfg, logger, writer)
         else:
-            valid(model, valid_loader, criterion, optimizer, epoch, cfg, logger, writer)
+            valid(model, valid_loader, valid_criterion, optimizer, epoch, cfg, logger, writer)
         
         # save ckpt; master process
         if rank == 0 and epoch % cfg.save_interval == 0:

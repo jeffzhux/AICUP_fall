@@ -63,7 +63,7 @@ epochs = 1#100
 batch_size = 16#512
 
 # optimizer
-lr = 0.03
+lr = 0.1
 weight_decay = 1e-4
 optimizer = dict(
     type = 'SGD',

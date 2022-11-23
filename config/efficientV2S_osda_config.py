@@ -37,7 +37,7 @@ data = dict(
     ),
     vaild = dict(
         root=f'{data_root}/valid',
-        type = 'OSDA_ImageFolder',
+        type = 'AICUP_ImageFolder2',
         transform = dict(
             type='base',
             size = (128, 128)
@@ -64,15 +64,20 @@ model = dict(
 )
 
 # loss
-loss = dict(
+train_loss = dict(
     type = 'OSDALoss',
     t = 0.5,
     label_smoothing = 0.1
     
 )
+valid_loss = dict(
+    type = 'CrossEntropyLoss',
+    label_smoothing = 0.1
+    
+)
 #train
-epochs = 100#100
-batch_size = 512#512
+epochs = 1#100
+batch_size = 16#512
 
 # optimizer
 lr = 0.03
