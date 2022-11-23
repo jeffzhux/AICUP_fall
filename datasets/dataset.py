@@ -1,4 +1,5 @@
 import numpy as np
+import os
 
 import torch
 from torchvision.datasets import ImageFolder
@@ -49,6 +50,53 @@ class AICUP_ImageFolder(ImageFolder):
         )
 
         self.num_of_classes = len(self.classes)
+    def __getitem__(self, index: int) -> Tuple[Any, Any]:
+        """
+        Args:
+            index (int): Index
+        Returns:
+            tuple: (sample, target) where target is class_index of the target class.
+        """
+        path, target = self.samples[index]
+        sample = self.loader(path)
+        if self.transform is not None:
+            sample = self.transform(sample)
+
+        target = torch.tensor(target)
+        target = F.one_hot(target, self.num_of_classes)
+        target = target.type(torch.float32)
+        return sample, target
+
+class OSDA_ImageFolder(ImageFolder):
+    def __init__(
+        self,
+        root: str,
+        transform: Optional[Callable] = None,
+        target_transform: Optional[Callable] = None
+    ):
+        super().__init__(
+            root,
+            transform=transform,
+            target_transform=target_transform
+        )
+
+        if 'others' not in self.class_to_idx.keys():
+            self.class_to_idx['others'] = len(self.classes)
+            self.num_of_classes = len(self.classes) + 1
+        else:
+            self.num_of_classes = len(self.classes)
+
+    def find_classes(self, directory: str) -> Tuple[List[str], Dict[str, int]]:
+        classes = sorted(entry.name for entry in os.scandir(directory) if entry.is_dir())
+        if not classes:
+            raise FileNotFoundError(f"Couldn't find any class folder in {directory}.")
+        
+        if 'others' in classes:
+            classes.remove('others')
+            classes.append('others')
+        class_to_idx = {cls_name: i for i, cls_name in enumerate(classes)}
+        return classes, class_to_idx
+
     def __getitem__(self, index: int) -> Tuple[Any, Any]:
         """
         Args:
