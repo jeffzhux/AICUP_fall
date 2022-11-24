@@ -17,6 +17,31 @@ class CollateFunction(nn.Module):
         labels = torch.stack(labels)
         return images, labels
 
+class OSDACollate(nn.Module):
+    def __init__(self, num_classes, mixup_alpha=0.2, cutmix_alpha=1.0):
+        super(OSDACollate, self).__init__()
+        self.num_classes = num_classes
+        self.mixup = MixupCollate(num_classes, alpha=mixup_alpha)
+        self.cutmix = CutMixCollate(num_classes, alpha=cutmix_alpha)
+    def forward(self, batch: List[tuple]):
+        # # other is at the end of list
+        st = len(batch) // 2 # source and target size
+        batch.sort(key=lambda x: str(self.num_classes-1).__eq__(str(x[1])))
+
+        img, lab = map(list,zip(*batch))
+        lab = torch.tensor(lab)
+        lab = F.one_hot(lab, self.num_classes).type(torch.float32)
+
+        source_batch = list(map(lambda x, y: (x, y), img[:st], lab[:st])) # source
+        target_batch = list(map(lambda x, y: (x, y), img[st:], lab[st:])) # target
+
+        img1, lab1 = self.mixup(source_batch[:st//2])
+        img2, lab2 = self.cutmix(source_batch[st//2:])
+        img3, lab3 = self.mixup(target_batch[:st//2])
+        img4, lab4 = self.cutmix(target_batch[st//2:])
+        
+        return torch.concat((img1, img2, img3, img4), dim=0), torch.concat((lab1, lab2, lab3, lab4), dim=0)
+
 class RandomMixupCutMixCollate(nn.Module):
     def __init__(self, num_classes, mixup_alpha=0.2, cutmix_alpha=1.0):
         super(RandomMixupCutMixCollate, self).__init__()

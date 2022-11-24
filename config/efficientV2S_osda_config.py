@@ -3,31 +3,22 @@ seed = 1022
 amp = False
 
 #data
-data_root = './data/OSDA'
+data_root = './data/ID'
 num_workers = 8
 num_classes = 33
 data = dict(
     collate = dict(
-        type = 'RandomMixupCutMixCollate',
+        type = 'OSDACollate',
         num_classes = num_classes,
         mixup_alpha=0.1
     ),
     sampler = dict(
         type='RASampler',
         shuffle = True,
-        repetitions = 1 #4
+        repetitions = 4 #4
     ),
-    source = dict(
-        root=f'{data_root}/source',
-        type = 'OSDA_ImageFolder',
-        transform = dict(
-            type='baseOnTrivialAugment',
-            size = (128, 128),
-            lighting = 0.1
-        )
-    ),
-    target = dict(
-        root=f'{data_root}/target',
+    train = dict(
+        root=f'{data_root}/train',
         type = 'OSDA_ImageFolder',
         transform = dict(
             type='baseOnTrivialAugment',
@@ -37,7 +28,7 @@ data = dict(
     ),
     vaild = dict(
         root=f'{data_root}/valid',
-        type = 'AICUP_ImageFolder2',
+        type = 'OSDA_ImageFolder',
         transform = dict(
             type='base',
             size = (128, 128)

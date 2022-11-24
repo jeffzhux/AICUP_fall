@@ -86,30 +86,28 @@ def train(model, model_ema, dataloader, criterion, optimizer, epoch, scaler, cfg
     num_iter = len(dataloader)
     iter_end = time.time()
     epoch_end = time.time()
-    for idx, ((s_imgs, s_labels), (t_imgs, t_labels)) in enumerate(dataloader):
+    for idx, (imgs, labels) in enumerate(dataloader):
         
-        s_imgs = s_imgs.cuda(non_blocking=True)
-        s_labels = s_labels.cuda(non_blocking=True)
+        imgs = imgs.cuda(non_blocking=True)
+        labels = labels.cuda(non_blocking=True)
 
-        t_imgs = t_imgs.cuda(non_blocking=True)
-        # t_labels = t_labels.cuda(non_blocking=True)
-
-        batch_size = s_imgs.size(0)
+        batch_size = imgs.size(0)
+        st_size = batch_size//2
 
         # measure data loading time
         data_time.update(time.time() - iter_end)
 
         # compute output
         with autocast(enabled=scaler is not None):
-            s_logits= model(s_imgs, reverse=False)
-            t_logits = model(t_imgs, reverse=True)
+            s_logits= model(imgs[:st_size], reverse=False)
+            t_logits = model(imgs[st_size:], reverse=True)
 
-            loss = criterion(s_logits, t_logits, s_labels, t_labels)
+            loss = criterion(s_logits, t_logits, labels[:st_size], labels[st_size:])
 
         losses.update(loss.item(), batch_size)
 
         # accurate
-        acc1, acc5 = accuracy(s_logits, s_labels, topk=(1,5))
+        acc1, acc5 = accuracy(s_logits, labels[:st_size], topk=(1,5))
         top1.update(acc1.item(), batch_size)
 
         # compute gradient and do SGD step
@@ -142,7 +140,7 @@ def train(model, model_ema, dataloader, criterion, optimizer, epoch, scaler, cfg
                         f'loss(loss avg): {loss:.3f}({losses.avg:.3f}),  '
                         f'train_Acc@1: {top1.avg:.3f}  '
             )
-        break
+        
     if logger is not None: 
         now = time.time()
         epoch_time = format_time(now - epoch_end)
@@ -232,31 +230,18 @@ def main_worker(rank, world_size, cfg):
     print('batch_size per gpu:', cfg.bsz_gpu)
     
     # build dataset
-    source_set =  build_dataset(cfg.data.source)
-    source_collate = build_collate(cfg.data.collate)
-    source_sampler = build_sampler(source_set, cfg.data.sampler)
-    source_loader = torch.utils.data.DataLoader(
-        source_set,
+    train_set =  build_dataset(cfg.data.train)
+    train_collate = build_collate(cfg.data.collate)
+    train_sampler = build_sampler(train_set, cfg.data.sampler)
+    train_loader = torch.utils.data.DataLoader(
+        train_set,
         batch_size=cfg.bsz_gpu,
         num_workers=cfg.num_workers,
-        collate_fn = source_collate,
+        collate_fn = train_collate,
         pin_memory=True,
-        sampler=source_sampler,
+        sampler=train_sampler,
         drop_last=True
     )
-    target_set =  build_dataset(cfg.data.target)
-    target_collate = build_collate(cfg.data.collate)
-    target_sampler = build_sampler(target_set, cfg.data.sampler)
-    target_loader = torch.utils.data.DataLoader(
-        target_set,
-        batch_size=cfg.bsz_gpu,
-        num_workers=cfg.num_workers,
-        collate_fn = target_collate,
-        pin_memory=True,
-        sampler=target_sampler,
-        drop_last=True
-    )
-    train_loader = ConcatDataLoader(source_loader, target_loader)
 
     valid_set = build_dataset(cfg.data.vaild)
     valid_loader = torch.utils.data.DataLoader(
@@ -298,8 +283,7 @@ def main_worker(rank, world_size, cfg):
         start_epoch = load_weights(cfg.load, model_without_ddp, model_ema, optimizer, scaler, resume=False)
     
     for epoch in range(start_epoch, cfg.epochs + 1):
-        source_sampler.set_epoch(epoch)
-        target_sampler.set_epoch(epoch)
+        train_sampler.set_epoch(epoch)
         adjust_learning_rate(cfg.lr_cfg, optimizer, epoch)
 
         # train; all processes
