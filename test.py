@@ -18,7 +18,8 @@ from utils.config import Config
 from utils.util import Metric, accuracy, set_seed
 from utils.build import build_logger
 from utils.test_time_augmentation import TestTimeAugmentation
-
+from sklearn import metrics
+import matplotlib.pyplot as plt
 def get_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument('config', type=str, help='config file path')
@@ -73,14 +74,14 @@ def iterate_data(model, dataloader, tta, cfg):
 
         pred_class.append(logits)
         target.append(labels)
-
+        # break
     pred_class = torch.cat(pred_class)
     target = torch.cat(target)
 
     return pred_class, target
 
 @torch.no_grad()
-def run_eval(model, test_loader, tta, cfg):
+def run_eval(model, test_loader, dataset, tta, cfg):
     
     pred_class, target = iterate_data(model, test_loader, tta, cfg)
     
@@ -105,18 +106,19 @@ def run_eval(model, test_loader, tta, cfg):
     else:
         pred_class = F.softmax(pred_class, dim=-1)
 
+    
     metrix = Metric(pred_class.size(-1))
     metrix.update(pred_class, target)
-    recall = metrix.recall('none')
-    precision = metrix.precision('none')
-    f1_score = metrix.f1_score('none')
-    acc = metrix.accuracy('none')
+    confuse_matrix = metrix.confusion_matrix().numpy()
     wp = metrix.weighted_precision(0.7)
-    print(acc)
-    print(recall)
-    print(precision)
-    print(f1_score)
-    print(f'acc : {acc.mean().item()}')
+
+    fig, ax = plt.subplots(figsize=(20,20))
+    ax.ticklabel_format(style='plain', useOffset=False)
+    cm_display = metrics.ConfusionMatrixDisplay(confuse_matrix, display_labels=dataset.class_to_idx.keys())
+    cm_display.plot(ax = ax, values_format='.20g', cmap='Blues')
+    plt.xticks(rotation=90)
+    cm_display.figure_.savefig(os.path.join(cfg.work_dir, f'confuse_metrix.png'))
+    print(metrics.classification_report(target.cpu().tolist(), torch.argmax(pred_class, dim=-1).cpu().tolist(), target_names=dataset.class_to_idx.keys()))
     print(f'wp : {wp.item()}')
     
 @torch.no_grad()
@@ -205,7 +207,7 @@ def main_worker(rank, world_size, cfg):
     if cfg.output_file_name is not None:
         run_inference(model, test_loader, test_set, cfg)
     else:
-        run_eval(model, test_loader, tta, cfg)
+        run_eval(model, test_loader, test_set, tta, cfg)
         
     # run_eval(model_ema, test_loader, tta, cfg)
 def main():

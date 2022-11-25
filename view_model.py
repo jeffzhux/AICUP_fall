@@ -119,10 +119,24 @@ test_loader = torch.utils.data.DataLoader(
     pin_memory = True,
     drop_last = False
 )
-
-a = torch.tensor([
+from sklearn import metrics
+import matplotlib.pyplot as plt
+import numpy as np
+a = np.array([
     [1,2,4],
+    [3,4,5],
     [3,4,5]
 ])
+b = ['abc','bde', 'cbg']
 
-print(torch.sum(a[:,:-1], dim=-1))
+fig, ax = plt.subplots(figsize=(20,20))
+
+
+cm_display = metrics.ConfusionMatrixDisplay(a, display_labels=b)
+cm_display.plot(ax = ax, cmap='Blues')
+cm_display.ax_.set_title('Confusion Matrix')
+plt.xticks(rotation=90)
+cm_display.figure_.savefig(f'./test_experiment/confuse_metrix.png')
+
+x, y = [1,1,0], [0,1,0]
+print(metrics.classification_report(y,x, target_names=['a','b']))

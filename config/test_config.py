@@ -23,7 +23,7 @@ data = dict(
         ),
         base_transform = dict(
             type='base',
-            size = (416, 416)
+            size = (356, 356)
         ),
         num_of_trans = test_time_augmentation['num_of_trans']
     )
@@ -52,7 +52,8 @@ batch_size = 32
 #log & save
 output_file_name = None#'submission'
 work_dir = './test_experiment/efficient'
-load = './experiment/efficientV2S/20221121_114020/epoch_25.pth' # 0.90 448,448
+load = './experiment/efficientV2S/20221120_201850/epoch_100.pth'
+# load = './experiment/efficientV2S/20221121_114020/epoch_25.pth' # 0.88 416,416
 # load = './experiment/efficientV2S/20221118_230640/epoch_100.pth' # 8742 224,224
 # load = './experiment/efficientV2S/20221119_220253/epoch_100.pth' # 8922 356,356
 port = 10001
