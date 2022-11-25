@@ -181,16 +181,14 @@ def valid(model, dataloader, dataset, criterion, optimizer, epoch, cfg, logger, 
             losses.update(loss.item(), batch_size)
             top1.update(acc1.item(), batch_size)
             top5.update(acc5.item(), batch_size)
-
+            break
     epoch_time = format_time(time.time() - end)
 
-    pred_class = torch.cat(pred_class)
-    target = torch.argmax(torch.cat(labels), dim=-1)
-
-    pred_class = F.softmax(pred_class, dim=-1)
-
+    pred_class = F.softmax(torch.cat(pred_class), dim=-1)
+    labels = torch.cat(labels)
+    
     metrix = Metric(pred_class.size(-1))
-    metrix.update(pred_class, target)
+    metrix.update(pred_class, labels)
     recall = metrix.recall('none')
     precision = metrix.precision('none')
     f1_score = metrix.f1_score('none')
@@ -303,7 +301,7 @@ def main_worker(rank, world_size, cfg):
         adjust_learning_rate(cfg.lr_cfg, optimizer, epoch)
 
         # train; all processes
-        train(model, model_ema, train_loader, train_criterion, optimizer, epoch, scaler, cfg, logger, writer)
+        # train(model, model_ema, train_loader, train_criterion, optimizer, epoch, scaler, cfg, logger, writer)
         
         if model_ema:
             valid(model_ema, valid_loader, valid_set, valid_criterion, optimizer, epoch, cfg, logger, writer)
