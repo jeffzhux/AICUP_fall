@@ -12,11 +12,10 @@ import torch
 
 
 from torch.utils.tensorboard import SummaryWriter
-from utils.util import AverageMeter, TrackMeter, accuracy, adjust_learning_rate, format_time, set_seed, set_weight_decay
+from utils.util import AverageMeter, Metric, TrackMeter, accuracy, adjust_learning_rate, format_time, set_seed, set_weight_decay
 from utils.build import build_logger
 from datasets.sampler import build_sampler
 from datasets.build import build_dataset
-from datasets.dataloader import ConcatDataLoader
 from models.build import build_model, build_ema_model
 from losses.build import build_loss
 from optimizers.build import build_optimizer
@@ -154,7 +153,7 @@ def train(model, model_ema, dataloader, criterion, optimizer, epoch, scaler, cfg
         writer.add_scalar('Train/loss', losses.avg, epoch)
         writer.add_scalar('Train/OSacc@1', top1.avg, epoch)
 
-def valid(model, dataloader, criterion, optimizer, epoch, cfg, logger, writer):
+def valid(model, dataloader, dataset, criterion, optimizer, epoch, cfg, logger, writer):
     model.eval() # 開啟batch normalization 和 dropout
 
     losses = AverageMeter()
@@ -307,9 +306,9 @@ def main_worker(rank, world_size, cfg):
         train(model, model_ema, train_loader, train_criterion, optimizer, epoch, scaler, cfg, logger, writer)
         
         if model_ema:
-            valid(model_ema, valid_loader, valid_criterion, optimizer, epoch, cfg, logger, writer)
+            valid(model_ema, valid_loader, valid_set, valid_criterion, optimizer, epoch, cfg, logger, writer)
         else:
-            valid(model, valid_loader, valid_criterion, optimizer, epoch, cfg, logger, writer)
+            valid(model, valid_loader, valid_set, valid_criterion, optimizer, epoch, cfg, logger, writer)
         
         # save ckpt; master process
         if rank == 0 and epoch % cfg.save_interval == 0:
