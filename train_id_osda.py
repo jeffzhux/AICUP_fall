@@ -160,9 +160,10 @@ def valid(model, dataloader, criterion, optimizer, epoch, cfg, logger, writer):
     losses = AverageMeter()
     top1 = AverageMeter()
     top5 = AverageMeter()
-    test_meter = TrackMeter()
-    end = time.time()
 
+    end = time.time()
+    pred_class = []
+    labels = []
     with torch.no_grad():
         for idx, (images, targets) in enumerate(dataloader):
             images = images.cuda(non_blocking=True)
@@ -174,6 +175,9 @@ def valid(model, dataloader, criterion, optimizer, epoch, cfg, logger, writer):
             loss = criterion(logits, targets)
             acc1, acc5 = accuracy(logits, targets, topk=(1,5))
 
+            pred_class.append(logits)
+            labels.append(targets)
+
             # update metric
             losses.update(loss.item(), batch_size)
             top1.update(acc1.item(), batch_size)
@@ -181,6 +185,16 @@ def valid(model, dataloader, criterion, optimizer, epoch, cfg, logger, writer):
 
     epoch_time = format_time(time.time() - end)
 
+    pred_class = torch.cat(pred_class)
+    target = torch.argmax(torch.cat(labels), dim=-1)
+
+    pred_class = F.softmax(pred_class, dim=-1)
+
+    metrix = Metric(pred_class.size(-1))
+    metrix.update(pred_class, target)
+    recall = metrix.recall('none')
+    precision = metrix.precision('none')
+    f1_score = metrix.f1_score('none')
     ''' save best
     if top1.avg > test_meter.max_val:
         model_path = os.path.join(cfg.work_dir, f'best_{cfg.cfgname}.pth')
@@ -197,7 +211,10 @@ def valid(model, dataloader, criterion, optimizer, epoch, cfg, logger, writer):
         logger.info(f'Epoch [{epoch}] - epoch_time: {epoch_time}, '
                     f'valid_loss: {losses.avg:.3f}, '
                     f'valid_Acc@1: {top1.avg:.3f}, '
-                    f'valid_Acc@5: {top5.avg:.3f}')
+                    f'valid_Acc@5: {top5.avg:.3f}, '
+                    f'recall: {recall[dataset.class_to_idx["others"]]:.3f}, '
+                    f'precision: {precision[dataset.class_to_idx["others"]]:.3f}, '
+                    f'f1_score: {f1_score[dataset.class_to_idx["others"]]:.3f}')
 
     if writer is not None:
         writer.add_scalar('Valid/loss', losses.avg, epoch)
