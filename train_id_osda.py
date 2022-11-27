@@ -181,7 +181,7 @@ def valid(model, dataloader, dataset, criterion, optimizer, epoch, cfg, logger, 
             losses.update(loss.item(), batch_size)
             top1.update(acc1.item(), batch_size)
             top5.update(acc5.item(), batch_size)
-            break
+            
     epoch_time = format_time(time.time() - end)
 
     pred_class = F.softmax(torch.cat(pred_class), dim=-1)

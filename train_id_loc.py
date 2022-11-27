@@ -283,7 +283,7 @@ def main_worker(rank, world_size, cfg):
         adjust_learning_rate(cfg.lr_cfg, optimizer, epoch)
 
         # train; all processes
-        # train(model, model_ema, train_loader, criterion, optimizer, epoch, scaler, cfg, logger, writer)
+        train(model, model_ema, train_loader, criterion, optimizer, epoch, scaler, cfg, logger, writer)
         
         if model_ema:
             valid(model_ema, valid_loader, criterion, optimizer, epoch, cfg, logger, writer)
