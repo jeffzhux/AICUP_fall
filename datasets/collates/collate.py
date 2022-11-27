@@ -17,6 +17,18 @@ class CollateFunction(nn.Module):
         labels = torch.stack(labels)
         return images, labels
 
+class locCollateFunction(nn.Module):
+    def __init__(self):
+        super(locCollateFunction, self).__init__()
+
+    def forward(self, batch: List[tuple]):
+        
+        img, lab, loc = map(list,zip(*batch))
+        img = torch.stack(img)
+        lab = torch.stack(lab)
+        loc = torch.tensor(loc)
+        return img, lab, loc
+
 class locCollate(nn.Module):
     def __init__(self, num_classes, mixup_alpha=0.2, cutmix_alpha=1.0):
         super(locCollate, self).__init__()

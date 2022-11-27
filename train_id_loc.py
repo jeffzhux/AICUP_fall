@@ -20,7 +20,7 @@ from datasets.build import build_dataset
 from models.build import build_model, build_ema_model
 from losses.build import build_loss
 from optimizers.build import build_optimizer
-
+from datasets.collates import locCollateFunction
 def get_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument('config', type=str, help='config file path')
@@ -139,7 +139,7 @@ def train(model, model_ema, dataloader, criterion, optimizer, epoch, scaler, cfg
                         f'loss(loss avg): {loss:.3f}({losses.avg:.3f}),  '
                         f'train_Acc@1: {top1.avg:.3f}  '
             )
-        exit()
+        
     if logger is not None: 
         now = time.time()
         epoch_time = format_time(now - epoch_end)
@@ -163,13 +163,15 @@ def valid(model, dataloader, criterion, optimizer, epoch, cfg, logger, writer):
     end = time.time()
 
     with torch.no_grad():
-        for idx, (images, targets) in enumerate(dataloader):
+        for idx, (images, targets, loc) in enumerate(dataloader):
             images = images.cuda(non_blocking=True)
             targets = targets.cuda(non_blocking=True)
+
+            loc = loc.cuda(non_blocking=True)
             batch_size = targets.shape[0]
 
             # forward
-            logits = model(images)
+            logits = model(images, loc)
             loss = criterion(logits, targets)
             acc1, acc5 = accuracy(logits, targets, topk=(1,5))
 
@@ -242,10 +244,12 @@ def main_worker(rank, world_size, cfg):
         drop_last=True
     )
     valid_set = build_dataset(cfg.data.vaild)
+    valid_collate = locCollateFunction()
     valid_loader = torch.utils.data.DataLoader(
         valid_set,
         batch_size=cfg.bsz_gpu,
         num_workers=cfg.num_workers,
+        collate_fn = valid_collate,
         pin_memory=True,
         drop_last=True
     )
@@ -279,7 +283,7 @@ def main_worker(rank, world_size, cfg):
         adjust_learning_rate(cfg.lr_cfg, optimizer, epoch)
 
         # train; all processes
-        train(model, model_ema, train_loader, criterion, optimizer, epoch, scaler, cfg, logger, writer)
+        # train(model, model_ema, train_loader, criterion, optimizer, epoch, scaler, cfg, logger, writer)
         
         if model_ema:
             valid(model_ema, valid_loader, criterion, optimizer, epoch, cfg, logger, writer)
