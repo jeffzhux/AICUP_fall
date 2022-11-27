@@ -2,6 +2,10 @@
 seed = 1022
 amp = False
 
+#train
+epochs = 1#100
+batch_size = 16#512
+
 #data
 data_root = './data/ID'
 num_workers = 8
@@ -44,12 +48,13 @@ model_ema = dict(
 )
 
 model = dict(
-    type="LocNet",
+    type="LocClipNet",
     backbone = dict(
         type = 'efficientnet_v2_s',
         weights = 'EfficientNet_V2_S_Weights.IMAGENET1K_V1',
         dropout_rate = 0.1,
-        num_classes = num_classes 
+        num_classes = num_classes,
+        batch_size = batch_size
     )
     
 )
@@ -59,9 +64,7 @@ loss = dict(
     type = 'CrossEntropyLoss',
     label_smoothing = 0.1
 )
-#train
-epochs = 1#100
-batch_size = 16#512
+
 
 # optimizer
 lr = 0.03

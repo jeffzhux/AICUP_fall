@@ -124,7 +124,7 @@ def train(model, model_ema, dataloader, criterion, optimizer, epoch, scaler, cfg
             if epoch < cfg.lr_cfg.warmup_steps:
                 # Reset ema buffer to keep copying weights during warmup period
                 model_ema.n_averaged.fill_(0)
-
+        
         # measure elapsed time
         batch_time.update(time.time() - iter_end)
         iter_end = time.time()

@@ -245,6 +245,17 @@ class loc_ImageFolder(ImageFolder):
     def has_file_allowed_extension(self, filename: str, extensions: Union[str, Tuple[str, ...]]) -> bool:
         return filename.lower().endswith(extensions if isinstance(extensions, str) else tuple(extensions))
 
+    def find_classes(self, directory: str) -> Tuple[List[str], Dict[str, int]]:
+        classes = sorted(entry.name for entry in os.scandir(directory) if entry.is_dir())
+        if not classes:
+            raise FileNotFoundError(f"Couldn't find any class folder in {directory}.")
+        
+        if 'others' in classes:
+            classes.remove('others')
+            classes.append('others')
+        class_to_idx = {cls_name: i for i, cls_name in enumerate(classes)}
+        return classes, class_to_idx
+
     def make_dataset(
         self,
         directory: str,

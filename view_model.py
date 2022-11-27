@@ -120,8 +120,6 @@ test_loader = torch.utils.data.DataLoader(
     drop_last = False
 )
 
-import numpy as np
-import csv
 
 
 # with open('./training/tag_locCoor.csv', mode = 'r') as inp:
@@ -131,7 +129,7 @@ import csv
 #             print((float(v[7]) - 21.896823) / (25.299653 - 21.896823))
 #             print((float(v[6]) - 120.035198) / (122.007112 - 120.035198))
 #             break
-a = torch.rand((16, 1280))
-b = torch.rand((16, 128))
-c = torch.stack(a,b, dim=0)
-print(c.size())
+
+emb = nn.Embedding(33, 2048)
+x = torch.tensor(range(0, 33))
+print(emb(x).size())
