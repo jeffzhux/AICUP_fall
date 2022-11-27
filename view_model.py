@@ -119,24 +119,19 @@ test_loader = torch.utils.data.DataLoader(
     pin_memory = True,
     drop_last = False
 )
-from sklearn import metrics
-import matplotlib.pyplot as plt
+
 import numpy as np
-a = np.array([
-    [1,2,4],
-    [3,4,5],
-    [3,4,5]
-])
-b = ['abc','bde', 'cbg']
-
-fig, ax = plt.subplots(figsize=(20,20))
+import csv
 
 
-cm_display = metrics.ConfusionMatrixDisplay(a, display_labels=b)
-cm_display.plot(ax = ax, cmap='Blues')
-cm_display.ax_.set_title('Confusion Matrix')
-plt.xticks(rotation=90)
-cm_display.figure_.savefig(f'./test_experiment/confuse_metrix.png')
-
-x, y = [1,1,0], [0,1,0]
-print(metrics.classification_report(y,x, target_names=['a','b']))
+# with open('./training/tag_locCoor.csv', mode = 'r') as inp:
+#     reader = csv.reader(inp)
+#     for i, v in enumerate(reader):
+#         if i > 0:
+#             print((float(v[7]) - 21.896823) / (25.299653 - 21.896823))
+#             print((float(v[6]) - 120.035198) / (122.007112 - 120.035198))
+#             break
+a = torch.rand((16, 1280))
+b = torch.rand((16, 128))
+c = torch.stack(a,b, dim=0)
+print(c.size())

@@ -1,12 +1,12 @@
 import numpy as np
 import os
-
+import csv
 import torch
 from torchvision.datasets import ImageFolder
 import  torch.nn.functional as F
-from typing import Any, Callable, Optional, Tuple, List, Dict
-
-from datasets.transforms.aicup import base, fixTest
+from typing import Any, Callable, cast, Dict, List, Optional, Tuple, Union
+from datasets.tokenizer import vocab
+from datasets.transforms.aicup import base
 
 class AICUP_ImageFolder(ImageFolder):
     """A generic data loader where the images are arranged in this way by default: ::
@@ -110,53 +110,6 @@ class OSDA_ImageFolder(ImageFolder):
         # target = target.type(torch.float32)
         return sample, target
 
-# class OSDA_ImageFolder(ImageFolder):
-#     def __init__(
-#         self,
-#         root: str,
-#         transform: Optional[Callable] = None,
-#         target_transform: Optional[Callable] = None
-#     ):
-#         super().__init__(
-#             root,
-#             transform=transform,
-#             target_transform=target_transform
-#         )
-
-#         if 'others' not in self.class_to_idx.keys():
-#             self.class_to_idx['others'] = len(self.classes)
-#             self.num_of_classes = len(self.classes) + 1
-#         else:
-#             self.num_of_classes = len(self.classes)
-
-#     def find_classes(self, directory: str) -> Tuple[List[str], Dict[str, int]]:
-#         classes = sorted(entry.name for entry in os.scandir(directory) if entry.is_dir())
-#         if not classes:
-#             raise FileNotFoundError(f"Couldn't find any class folder in {directory}.")
-        
-#         if 'others' in classes:
-#             classes.remove('others')
-#             classes.append('others')
-#         class_to_idx = {cls_name: i for i, cls_name in enumerate(classes)}
-#         return classes, class_to_idx
-
-#     def __getitem__(self, index: int) -> Tuple[Any, Any]:
-#         """
-#         Args:
-#             index (int): Index
-#         Returns:
-#             tuple: (sample, target) where target is class_index of the target class.
-#         """
-#         path, target = self.samples[index]
-#         sample = self.loader(path)
-#         if self.transform is not None:
-#             sample = self.transform(sample)
-
-#         target = torch.tensor(target)
-#         target = F.one_hot(target, self.num_of_classes)
-#         target = target.type(torch.float32)
-#         return sample, target
-
 class OOD_ImageFolder(ImageFolder):
     def __init__(
         self,
@@ -190,34 +143,6 @@ class OOD_ImageFolder(ImageFolder):
         return sample, target
 
 class TestTimeAICUP_DataSet(ImageFolder):
-    """A generic data loader where the images are arranged in this way by default: ::
-
-        root/dog/xxx.png
-        root/dog/xxy.png
-        root/dog/[...]/xxz.png
-
-        root/cat/123.png
-        root/cat/nsdf3.png
-        root/cat/[...]/asd932_.png
-
-    This class inherits from :class:`~torchvision.datasets.DatasetFolder` so
-    the same methods can be overridden to customize the dataset.
-
-    Args:
-        root (string): Root directory path.
-        transform (callable, optional): A function/transform that  takes in an PIL image
-            and returns a transformed version. E.g, ``transforms.RandomCrop``
-        target_transform (callable, optional): A function/transform that takes in the
-            target and transforms it.
-        loader (callable, optional): A function to load an image given its path.
-        is_valid_file (callable, optional): A function that takes path of an Image file
-            and check if the file is a valid file (used to check of corrupt files)
-
-     Attributes:
-        classes (list): List of the class names sorted alphabetically.
-        class_to_idx (dict): Dict with items (class_name, class_index).
-        imgs (list): List of (image path, class_index) tuples
-    """
     def __init__(
         self,
         root: str,
@@ -252,34 +177,6 @@ class TestTimeAICUP_DataSet(ImageFolder):
         return sample, target
 
 class Group_ImageFolder(ImageFolder):
-    """A generic data loader where the images are arranged in this way by default: ::
-
-        root/dog/xxx.png
-        root/dog/xxy.png
-        root/dog/[...]/xxz.png
-
-        root/cat/123.png
-        root/cat/nsdf3.png
-        root/cat/[...]/asd932_.png
-
-    This class inherits from :class:`~torchvision.datasets.DatasetFolder` so
-    the same methods can be overridden to customize the dataset.
-
-    Args:
-        root (string): Root directory path.
-        transform (callable, optional): A function/transform that  takes in an PIL image
-            and returns a transformed version. E.g, ``transforms.RandomCrop``
-        target_transform (callable, optional): A function/transform that takes in the
-            target and transforms it.
-        loader (callable, optional): A function to load an image given its path.
-        is_valid_file (callable, optional): A function that takes path of an Image file
-            and check if the file is a valid file (used to check of corrupt files)
-
-     Attributes:
-        classes (list): List of the class names sorted alphabetically.
-        class_to_idx (dict): Dict with items (class_name, class_index).
-        imgs (list): List of (image path, class_index) tuples
-    """
     def __init__(
         self,
         root: str,
@@ -328,3 +225,103 @@ class Group_ImageFolder(ImageFolder):
         target[other_idx] = 1
         target = target.type(torch.float32)
         return sample, target
+
+
+class loc_ImageFolder(ImageFolder):
+    def __init__(
+        self,
+        root: str,
+        transform: Optional[Callable] = None,
+        target_transform: Optional[Callable] = None
+    ):
+        super().__init__(
+            root,
+            transform=transform,
+            target_transform=target_transform
+        )
+
+        self.num_of_classes = len(self.classes)
+
+    def has_file_allowed_extension(self, filename: str, extensions: Union[str, Tuple[str, ...]]) -> bool:
+        return filename.lower().endswith(extensions if isinstance(extensions, str) else tuple(extensions))
+
+    def make_dataset(
+        self,
+        directory: str,
+        class_to_idx: Optional[Dict[str, int]] = None,
+        extensions: Optional[Union[str, Tuple[str, ...]]] = None,
+        is_valid_file: Optional[Callable[[str], bool]] = None,
+    ) -> List[Tuple[str, int]]:
+
+        directory = os.path.expanduser(directory)
+
+        if class_to_idx is None:
+            _, class_to_idx = self.find_classes(directory)
+        elif not class_to_idx:
+            raise ValueError("'class_to_index' must have at least one entry to collect any samples.")
+
+        both_none = extensions is None and is_valid_file is None
+        both_something = extensions is not None and is_valid_file is not None
+        if both_none or both_something:
+            raise ValueError("Both extensions and is_valid_file cannot be None or not None at the same time")
+
+        if extensions is not None:
+
+            def is_valid_file(x: str) -> bool:
+                return self.has_file_allowed_extension(x, extensions)  # type: ignore[arg-type]
+
+        filename_to_loc = {}
+        with open('./training/tag_locCoor.csv', mode = 'r') as inp:
+            reader = csv.reader(inp)
+            for i, v in enumerate(reader):
+                if i > 0:
+                    filename_to_loc[v[1]] = [
+                        (float(v[7]) - 21.896823) / (25.299653 - 21.896823),
+                        (float(v[6]) - 120.035198) / (122.007112 - 120.035198)
+                        ]
+
+        is_valid_file = cast(Callable[[str], bool], is_valid_file)
+
+        instances = []
+        available_classes = set()
+        for target_class in sorted(class_to_idx.keys()):
+            class_index = class_to_idx[target_class]
+            target_dir = os.path.join(directory, target_class)
+            if not os.path.isdir(target_dir):
+                continue
+            for root, _, fnames in sorted(os.walk(target_dir, followlinks=True)):
+                for fname in sorted(fnames):
+                    path = os.path.join(root, fname)
+                    if is_valid_file(path):
+                        item = path, class_index, filename_to_loc[fname]
+                        instances.append(item)
+
+                        if target_class not in available_classes:
+                            available_classes.add(target_class)
+
+        empty_classes = set(class_to_idx.keys()) - available_classes
+        if empty_classes:
+            msg = f"Found no valid file for the classes {', '.join(sorted(empty_classes))}. "
+            if extensions is not None:
+                msg += f"Supported extensions are: {extensions if isinstance(extensions, str) else ', '.join(extensions)}"
+            raise FileNotFoundError(msg)
+
+        return instances
+
+    def __getitem__(self, index: int) -> Tuple[Any, Any]:
+        """
+        Args:
+            index (int): Index
+        Returns:
+            tuple: (sample, target) where target is class_index of the target class.
+        """
+        path, target, loc = self.samples[index]
+        sample = self.loader(path)
+        if self.transform is not None:
+            sample = self.transform(sample)
+
+        target = torch.tensor(target)
+        target = F.one_hot(target, self.num_of_classes)
+        target = target.type(torch.float32)
+
+        return sample, target, loc

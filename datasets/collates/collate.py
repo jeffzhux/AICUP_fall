@@ -17,6 +17,22 @@ class CollateFunction(nn.Module):
         labels = torch.stack(labels)
         return images, labels
 
+class locCollate(nn.Module):
+    def __init__(self, num_classes, mixup_alpha=0.2, cutmix_alpha=1.0):
+        super(locCollate, self).__init__()
+        self.num_classes = num_classes
+        self.mixup = MixupCollate(num_classes, alpha=mixup_alpha)
+        self.cutmix = CutMixCollate(num_classes, alpha=cutmix_alpha)
+    def forward(self, batch: List[tuple]):
+        
+        img, lab, loc = map(list,zip(*batch))
+        batch = list(map(lambda x, y: (x, y), img, lab))
+        bs = len(batch) // 2
+        img1, lab1 = self.mixup(batch[:bs])
+        img2, lab2 = self.cutmix(batch[bs:])
+        loc = torch.tensor(loc)
+        return torch.concat((img1, img2), dim=0), torch.concat((lab1, lab2), dim=0), loc
+
 class OSDACollate(nn.Module):
     def __init__(self, num_classes, mixup_alpha=0.2, cutmix_alpha=1.0):
         super(OSDACollate, self).__init__()
