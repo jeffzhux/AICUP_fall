@@ -13,6 +13,15 @@ class MixUpLoss(nn.Module):
         (y_a, y_b, lam) = labels
         return lam * self.criterion(pred, y_a) + (1 - lam) * self.criterion(pred, y_b)
 
+class ClipLoss(nn.Module):
+    def __init__(self, t=0.5, **args) -> None:
+        super(ClipLoss, self).__init__()
+        self.img_criterion = nn.CrossEntropyLoss(**args)
+        self.text_criterion = nn.CrossEntropyLoss(**args)
+    
+    def forward(self, logit, label):
+        loss = (self.img_criterion(logit, label) + self.text_criterion(logit.t(), label.t())) / 2
+        return loss
 
 class OSDALoss(nn.Module):
     def __init__(self, t=0.5, **args) -> None:

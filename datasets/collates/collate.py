@@ -17,6 +17,40 @@ class CollateFunction(nn.Module):
         labels = torch.stack(labels)
         return images, labels
 
+class ClipCollateFunction(nn.Module):
+    def __init__(self, context_length):
+        super(ClipCollateFunction, self).__init__()
+        self.context_length = context_length
+    def forward(self, batch: List[tuple]):
+        
+        img, lab, loc, text = map(list,zip(*batch))
+        img = torch.stack(img)
+        lab = torch.stack(lab)
+        loc = torch.tensor(loc)
+        text = torch.tensor(text).view(-1, self.context_length)
+        return img, lab, loc, text
+
+class ClipFunction(nn.Module):
+    def __init__(self, num_classes, mixup_alpha=0.2, cutmix_alpha=1.0):
+        super(ClipFunction, self).__init__()
+        self.num_classes = num_classes
+        self.mixup = MixupCollate(num_classes, alpha=mixup_alpha)
+        self.cutmix = CutMixCollate(num_classes, alpha=cutmix_alpha)
+
+    def forward(self, batch: List[tuple]):
+        
+        img, lab, loc, text = map(list,zip(*batch))
+
+        batch = list(map(lambda x, y: (x, y), img, lab))
+        bs = len(batch) // 2
+        img1, lab1 = self.mixup(batch[:bs], len(batch), position = 0)
+        img2, lab2 = self.cutmix(batch[bs:], len(batch), position = 1)
+
+        loc = torch.tensor(loc)
+        text = torch.tensor(text)
+        return torch.concat((img1, img2), dim=0), torch.concat((lab1, lab2), dim=0), loc, text
+
+
 class locCollateFunction(nn.Module):
     def __init__(self):
         super(locCollateFunction, self).__init__()
@@ -80,6 +114,7 @@ class RandomMixupCutMixCollate(nn.Module):
         bs = len(batch) // 2
         img1, lab1 = self.mixup(batch[:bs])
         img2, lab2 = self.cutmix(batch[bs:])
+        
         return torch.concat((img1, img2), dim=0), torch.concat((lab1, lab2), dim=0)
 
 class MixupCollate(nn.Module):
@@ -93,7 +128,7 @@ class MixupCollate(nn.Module):
         self.alpha = alpha
         self.num_classes = num_classes
 
-    def forward(self, batch: List[tuple]):
+    def forward(self, batch: List[tuple], cosineSimilarities_size: int = None, position:int = 0):
         images, labels = map(list,zip(*batch))
         
         images = torch.stack(images)
@@ -103,11 +138,15 @@ class MixupCollate(nn.Module):
             lam = np.random.beta(self.alpha, self.alpha)
         else:
             lam = 1
-        batch_size = images.size(0)
-        index = torch.randperm(batch_size)
+        bs = images.size(0)
+        index = torch.randperm(bs)
 
         images = lam * images + (1 - lam) * images[index, :]
-        labels = lam * labels + (1 - lam) * labels[index]
+        if cosineSimilarities_size:
+            labels = lam * F.one_hot(torch.arange(bs) + bs * position, num_classes=cosineSimilarities_size) \
+                 + (1-lam) * F.one_hot(index + bs * position, num_classes=cosineSimilarities_size)
+        else:
+            labels = lam * labels + (1 - lam) * labels[index]
         return images, labels
 
 class CutMixCollate(nn.Module):
@@ -119,7 +158,7 @@ class CutMixCollate(nn.Module):
         super(CutMixCollate, self).__init__()
         self.alpha = alpha
         self.num_classes = num_classes
-    def forward(self, batch: List[tuple]):
+    def forward(self, batch: List[tuple], cosineSimilarities_size: int = None, position:int = 0):
         images, labels = map(list,zip(*batch))
             
         images = torch.stack(images)
@@ -148,9 +187,13 @@ class CutMixCollate(nn.Module):
         index = torch.randperm(bs)
         lam = 1 - ((bbx2 - bbx1) * (bby2 - bby1) / (W * H))
         images[ :, :, bbx1 : bbx2, bby1 : bby2] = images[index, :, bbx1 : bbx2, bby1 : bby2]
-        labels = lam * labels + (1 - lam) * labels[index]
-        
+        if cosineSimilarities_size:
+            labels = lam * F.one_hot(torch.arange(bs) + bs * position, num_classes=cosineSimilarities_size) \
+                 + (1-lam) * F.one_hot(index + bs * position, num_classes=cosineSimilarities_size)
+        else:
+            labels = lam * labels + (1 - lam) * labels[index]
         return images, labels
+
 class TestTimeCollate(nn.Module):
     def __init__(self):
         super(TestTimeCollate, self).__init__()

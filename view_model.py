@@ -130,6 +130,20 @@ test_loader = torch.utils.data.DataLoader(
 #             print((float(v[6]) - 120.035198) / (122.007112 - 120.035198))
 #             break
 
-emb = nn.Embedding(33, 2048)
-x = torch.tensor(range(0, 33))
-print(emb(x).size())
+
+
+
+# areas = []
+# for k, v in data.items():
+#     if k not in areas:
+#         areas.append(k) 
+#     for vi in v:
+#         if vi not in areas:
+#             areas.append(vi)
+# idx = 33
+# for a in areas:
+#     print(f'\'{a}\':{idx},')
+#     idx += 1
+B = 3
+a = [i for i in range(0, B * B, B)]
+print(a)

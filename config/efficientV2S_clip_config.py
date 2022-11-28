@@ -4,17 +4,21 @@ amp = False
 
 #train
 epochs = 1#100
-batch_size = 16#512
+batch_size = 8#512
 
 #data
 data_root = './data/ID'
 num_workers = 8
 num_classes = 33
 data = dict(
-    collate = dict(
-        type = 'locCollate',
+    train_collate = dict(
+        type = 'ClipFunction',
         num_classes = num_classes,
         mixup_alpha=0.1
+    ),
+    valid_collate = dict(
+        type = 'ClipCollateFunction',
+        context_length = 5
     ),
     sampler = dict(
         type='RASampler',
@@ -23,7 +27,7 @@ data = dict(
     ),
     train = dict(
         root=f'{data_root}/train',
-        type = 'loc_ImageFolder',
+        type = 'Clip_ImageFolder',
         transform = dict(
             type='baseOnTrivialAugment',
             size = (128, 128),
@@ -32,7 +36,8 @@ data = dict(
     ),
     vaild = dict(
         root=f'{data_root}/valid',
-        type = 'loc_ImageFolder',
+        type = 'Clip_ImageFolder',
+        training = False,
         transform = dict(
             type='base',
             size = (128, 128)
@@ -48,7 +53,7 @@ model_ema = dict(
 )
 
 model = dict(
-    type="LocClipNet",
+    type="ClipNet",
     backbone = dict(
         type = 'efficientnet_v2_s',
         weights = 'EfficientNet_V2_S_Weights.IMAGENET1K_V1',
@@ -61,7 +66,7 @@ model = dict(
 
 # loss
 loss = dict(
-    type = 'CrossEntropyLoss',
+    type = 'ClipLoss',
     label_smoothing = 0.1
 )
 
@@ -91,7 +96,7 @@ lr_cfg = dict(  # passed to adjust_learning_rate(cfg=lr_cfg)
 #log & save
 log_interval = 200
 save_interval = 20
-work_dir = './experiment/efficientV2S_LOC'
+work_dir = './experiment/efficientV2S_CLIP'
 port = 10001
 resume = None # (路徑) 從中斷的地方開始 train
 load = None # (路徑) 載入訓練好的模型 test

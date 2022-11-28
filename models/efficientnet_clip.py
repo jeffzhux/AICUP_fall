@@ -54,7 +54,7 @@ class LocClipNet(nn.Module):
         self.logit_scale = nn.Parameter(torch.ones([]) * np.log(1 / 0.07))
         self.token_embedding = nn.Embedding(num_classes, output_dim)
         self.locLayer = nn.Linear(2, locDim)
-        self.projectHead = ProjectionHead([
+        self.backbone.classifier = ProjectionHead([
             (input_dim , hidden_dim, nn.BatchNorm1d(hidden_dim), nn.ReLU(inplace=True)),
             (hidden_dim , hidden_dim, nn.BatchNorm1d(hidden_dim), nn.ReLU(inplace=True)),
             (hidden_dim , output_dim, nn.BatchNorm1d(hidden_dim), None)
@@ -71,7 +71,7 @@ class LocClipNet(nn.Module):
         x = torch.flatten(x, 1)
         loc = self.locLayer(loc)
         x = torch.cat((x, loc), dim=-1)
-        x = self.projectHead(x)
+        x = self.backbone.classifier(x)
         return x
 
     def forward(self, x, loc):
