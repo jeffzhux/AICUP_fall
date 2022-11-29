@@ -72,11 +72,12 @@ class ResidualAttentionBlock(nn.Module):
         return x
 
 class Transformer(nn.Module):
-    def __init__(self, width: int, layers: int, heads: int):
+    def __init__(self, width: int, layers: int, heads: int, attn_mask: torch.Tensor = None):
         super().__init__()
         self.width = width
         self.layers = layers
-        self.resblocks = nn.Sequential(*[ResidualAttentionBlock(width, heads) for _ in range(layers)])
+        self.resblocks = nn.Sequential(*[ResidualAttentionBlock(width, heads, attn_mask) for _ in range(layers)])
+
 
     def forward(self, x: torch.Tensor):
         return self.resblocks(x)
@@ -85,7 +86,6 @@ class ClipNet(nn.Module):
     def __init__(self, cfg: ConfigDict):
         super(ClipNet, self).__init__()
         args = cfg.copy()
-
 
         backbone_args = cfg.backbone.copy()
 
@@ -100,7 +100,7 @@ class ClipNet(nn.Module):
         self.token_embedding = nn.Embedding(len(area_vocab), self.output_dim)
         self.positional_embedding = nn.Parameter(torch.empty(self.context_length, self.output_dim))
 
-        self.text_encoder = Transformer(width=2048, layers=3, heads=1)
+        self.text_encoder = Transformer(width=2048, layers=3, heads=1, attn_mask = self.build_attention_mask())
         self.ln_final = LayerNorm(self.output_dim)
         self.text_projection = nn.Parameter(torch.empty(self.output_dim, self.output_dim))
 
@@ -131,6 +131,14 @@ class ClipNet(nn.Module):
 
         if self.text_projection is not None:
             nn.init.normal_(self.text_projection, std=self.text_encoder.width ** -0.5)    
+
+    def build_attention_mask(self):
+        # lazily create causal attention mask, with full attention between the vision tokens
+        # pytorch uses additive attention mask; fill with -inf
+        mask = torch.empty(self.context_length, self.context_length)
+        mask.fill_(float("-inf"))
+        mask.triu_(1)  # zero out the lower diagonal
+        return mask
 
     def encode_image(self, x):
         x = self.image_encoder.features(x)

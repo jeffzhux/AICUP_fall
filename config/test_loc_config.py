@@ -3,6 +3,7 @@ seed = 2022
 
 # test
 batch_size = 32
+draw = False
 
 #data
 data_root = './data'

@@ -98,20 +98,21 @@ def run_eval(model, test_loader, dataset, cfg):
     pred_class = F.softmax(pred_class, dim=-1).cpu()
     target = torch.argmax(target, dim=-1).cpu()
 
-    tSNE_filename = os.path.join(cfg.work_dir, f'TSNE.png')
-    visualize(img_features.cpu(), target, dataset.class_to_idx, tSNE_filename)
+    
     metrix = Metric(pred_class.size(-1))
     metrix.update(pred_class, target)
     confuse_matrix = metrix.confusion_matrix().numpy()
     acc = metrix.accuracy('none')
     wp = metrix.weighted_precision(0.7)
-
-    fig, ax = plt.subplots(figsize=(20,20))
-    ax.ticklabel_format(style='plain', useOffset=False)
-    cm_display = metrics.ConfusionMatrixDisplay(confuse_matrix, display_labels=dataset.class_to_idx.keys())
-    cm_display.plot(ax = ax, values_format='.20g', cmap='Blues')
-    plt.xticks(rotation=90)
-    cm_display.figure_.savefig(os.path.join(cfg.work_dir, f'confuse_metrix.png'))
+    if cfg.draw:
+        fig, ax = plt.subplots(figsize=(20,20))
+        ax.ticklabel_format(style='plain', useOffset=False)
+        cm_display = metrics.ConfusionMatrixDisplay(confuse_matrix, display_labels=dataset.class_to_idx.keys())
+        cm_display.plot(ax = ax, values_format='.20g', cmap='Blues')
+        plt.xticks(rotation=90)
+        cm_display.figure_.savefig(os.path.join(cfg.work_dir, f'confuse_metrix.png'))
+        tSNE_filename = os.path.join(cfg.work_dir, f'TSNE.png')
+        visualize(img_features.cpu(), target, dataset.class_to_idx, tSNE_filename)
 
     print(metrics.classification_report(target.cpu().tolist(), torch.argmax(pred_class, dim=-1).cpu().tolist(), target_names=dataset.class_to_idx.keys()))
     print(f'acc : {acc}')
