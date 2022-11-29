@@ -105,7 +105,7 @@ def train(model, model_ema, dataloader, criterion, optimizer, epoch, scaler, cfg
             loss = criterion(logits, labels)
        
         losses.update(loss.item(), batch_size)
-        
+
         # accurate
         acc1, acc5 = accuracy(logits, labels, topk=(1,5))
         top1.update(acc1.item(), batch_size)
@@ -140,7 +140,7 @@ def train(model, model_ema, dataloader, criterion, optimizer, epoch, scaler, cfg
                         f'loss(loss avg): {loss:.3f}({losses.avg:.3f}),  '
                         f'train_Acc@1: {top1.avg:.3f}  '
             )
-        
+       
     if logger is not None: 
         now = time.time()
         epoch_time = format_time(now - epoch_end)
@@ -175,7 +175,7 @@ def valid(model, dataloader, criterion, optimizer, epoch, cfg, logger, writer):
             logits = model(images, text, loc)
             loss = criterion(logits, targets)
             acc1, acc5 = accuracy(logits, targets, topk=(1,5))
-
+            
             # update metric
             losses.update(loss.item(), batch_size)
             top1.update(acc1.item(), batch_size)

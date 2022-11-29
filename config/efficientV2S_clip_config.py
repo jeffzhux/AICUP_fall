@@ -4,7 +4,7 @@ amp = False
 
 #train
 epochs = 1#100
-batch_size = 8#512
+batch_size = 16#512
 
 #data
 data_root = './data/ID'

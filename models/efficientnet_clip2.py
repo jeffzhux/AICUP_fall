@@ -92,21 +92,21 @@ class ClipNet(nn.Module):
         backbone_name = backbone_args.pop('type')
         self.num_classes = backbone_args.pop('num_classes')
         
-        locDim = 128
-        
         hidden_dim = 2048
         self.output_dim = 2048
-        self.context_length = 5
+        self.context_length = 6
         # text
+        self.locLayer = nn.Linear(2, self.output_dim)
         self.token_embedding = nn.Embedding(len(area_vocab), self.output_dim)
         self.positional_embedding = nn.Parameter(torch.empty(self.context_length, self.output_dim))
+
         self.text_encoder = Transformer(width=2048, layers=3, heads=1)
         self.ln_final = LayerNorm(self.output_dim)
         self.text_projection = nn.Parameter(torch.empty(self.output_dim, self.output_dim))
 
         # image
         self.image_encoder = getattr(torchvision.models, backbone_name)(**backbone_args)
-        input_dim = self.image_encoder.classifier[-1].in_features + locDim
+        input_dim = self.image_encoder.classifier[-1].in_features
         self.image_encoder.classifier = ProjectionHead([
             (input_dim , hidden_dim, nn.BatchNorm1d(hidden_dim), nn.ReLU(inplace=True)),
             (hidden_dim , hidden_dim, nn.BatchNorm1d(hidden_dim), nn.ReLU(inplace=True)),
@@ -114,20 +114,40 @@ class ClipNet(nn.Module):
         ])
 
         self.logit_scale = nn.Parameter(torch.ones([]) * np.log(1 / 0.07))
-        self.locLayer = nn.Linear(2, locDim)
+        self.initialize_parameters()
 
-    def encode_image(self, x, loc):
+    def initialize_parameters(self):
+        nn.init.normal_(self.token_embedding.weight, std=0.02)
+        nn.init.normal_(self.positional_embedding, std=0.01)
+
+        proj_std = (self.text_encoder.width ** -0.5) * ((2 * self.text_encoder.layers) ** -0.5)
+        attn_std = self.text_encoder.width ** -0.5
+        fc_std = (2 * self.text_encoder.width) ** -0.5
+        for block in self.text_encoder.resblocks:
+            nn.init.normal_(block.attn.in_proj_weight, std=attn_std)
+            nn.init.normal_(block.attn.out_proj.weight, std=proj_std)
+            nn.init.normal_(block.mlp.c_fc.weight, std=fc_std)
+            nn.init.normal_(block.mlp.c_proj.weight, std=proj_std)
+
+        if self.text_projection is not None:
+            nn.init.normal_(self.text_projection, std=self.text_encoder.width ** -0.5)    
+
+    def encode_image(self, x):
         x = self.image_encoder.features(x)
         x = self.image_encoder.avgpool(x)
         x = torch.flatten(x, 1)
-        loc = self.locLayer(loc)
-        x = torch.cat((x, loc), dim=-1)
+
         x = self.image_encoder.classifier(x)
         return x
 
-    def encode_text(self, text):
+    def encode_text(self, text, loc):
+        loc = self.locLayer(loc).unsqueeze(1) # [batch_size, 1, d_model]
         x = self.token_embedding(text) # [batch_size, n_ctx, d_model]
+
+        x = torch.cat((x[:,:-1], loc, x[:,-1:]), dim=1)
+        
         x = x + self.positional_embedding
+
         x = x.permute(1, 0, 2) # NLD -> LND
         x = self.text_encoder(x)
         x = x.permute(1, 0, 2) # LND -> NLD
@@ -135,12 +155,14 @@ class ClipNet(nn.Module):
 
         # x.shape = [batch_size, n_ctx, transformer.width]
         # take features from the eot embedding (eot_token is the highest number in each sequence)
-        x = x[torch.arange(x.shape[0]), text.argmax(dim=-1)] @ self.text_projection
+    
+        x = x[:, -1] @ self.text_projection
         return x
-    def forward(self, img, text, loc):
-        image_features = self.encode_image(img, loc)
-        text_features = self.encode_text(text)
 
+    def forward(self, img, text, loc):
+        image_features = self.encode_image(img)
+        text_features = self.encode_text(text, loc)
+        
         # normalized features
         image_features = image_features / image_features.norm(dim=1, keepdim=True)
         text_features = text_features / text_features.norm(dim=1, keepdim=True)

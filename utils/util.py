@@ -4,6 +4,9 @@ import numpy as np
 import torch
 import torch.nn.functional as F
 import random
+from sklearn.manifold import TSNE
+import matplotlib.pyplot as plt
+import matplotlib.cm as cm
 
 class Metric:
     def __init__(self, num_classes):
@@ -401,3 +404,35 @@ def set_weight_decay(
             param_groups.append({"params":params[key], "weight_decay": params_weight_decay[key]})
     
     return param_groups
+
+def visualize(features, labels, class_to_idx, filename: str):
+    """
+    Visualize features from different domains using t-SNE.
+    Args:
+        features (tensor): features from source domain in shape :math:`(minibatch, F)`
+        labels (tensor): [1,3,4,5]
+        class_to_idx (str): {'asparagus': 0, 'bambooshoots': 1, 'betel': 2, 'broccoli': 3, 'cauliflower': 4, 'chinesecabbage': 5}
+        filename (str): the file name to save t-SNE
+    """
+    colors = cm.nipy_spectral(np.linspace(0, 1, len(class_to_idx)))
+    labels = labels.numpy()
+    features = features.numpy()
+    idx_to_class = {v:k for k, v in class_to_idx.items()}
+    # target_feature = target_feature.numpy()
+    # features = np.concatenate([source_feature, target_feature], axis=0)
+
+    # map features to 2-d using TSNE
+    X_tsne = TSNE(n_components=2, random_state=33).fit_transform(features)
+
+    # visualize using matplotlib
+    fig, ax = plt.subplots(figsize=(20, 20))
+    # ax.spines['top'].set_visible(False)
+    # ax.spines['right'].set_visible(False)
+    # ax.spines['bottom'].set_visible(False)
+    # ax.spines['left'].set_visible(False)
+    for l in range(len(class_to_idx)):
+        plt.scatter(X_tsne[np.where(labels == l), 0], X_tsne[np.where(labels == l), 1], color=colors[l], label=idx_to_class[l], s=20)
+    plt.legend(bbox_to_anchor=(1.001, 0), loc=3, borderaxespad=0)
+    plt.xticks([])
+    plt.yticks([])
+    plt.savefig(filename)

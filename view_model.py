@@ -144,6 +144,6 @@ test_loader = torch.utils.data.DataLoader(
 # for a in areas:
 #     print(f'\'{a}\':{idx},')
 #     idx += 1
-B = 3
-a = [i for i in range(0, B * B, B)]
-print(a)
+
+target = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0]
+pred = [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 25, 0, 0, 32, 0, 0, 0, 0, 0, 28, 0, 0, 0, 0, 0, 0, 0, 5, 0, 0, 0]
