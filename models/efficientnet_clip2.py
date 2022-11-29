@@ -92,11 +92,12 @@ class ClipNet(nn.Module):
         backbone_name = backbone_args.pop('type')
         self.num_classes = backbone_args.pop('num_classes')
         
+        locDim = 128
         hidden_dim = 2048
         self.output_dim = 2048
-        self.context_length = 6
+        self.context_length = 5
         # text
-        self.locLayer = nn.Linear(2, self.output_dim)
+        self.locLayer = nn.Linear(2, locDim)
         self.token_embedding = nn.Embedding(len(area_vocab), self.output_dim)
         self.positional_embedding = nn.Parameter(torch.empty(self.context_length, self.output_dim))
 
@@ -105,15 +106,18 @@ class ClipNet(nn.Module):
         self.text_projection = nn.Parameter(torch.empty(self.output_dim, self.output_dim))
 
         # image
+        self.logit_scale = nn.Parameter(torch.ones([]) * np.log(1 / 0.07))
+
         self.image_encoder = getattr(torchvision.models, backbone_name)(**backbone_args)
-        input_dim = self.image_encoder.classifier[-1].in_features
+        input_dim = self.image_encoder.classifier[-1].in_features + locDim
         self.image_encoder.classifier = ProjectionHead([
             (input_dim , hidden_dim, nn.BatchNorm1d(hidden_dim), nn.ReLU(inplace=True)),
             (hidden_dim , hidden_dim, nn.BatchNorm1d(hidden_dim), nn.ReLU(inplace=True)),
             (hidden_dim , self.output_dim, nn.BatchNorm1d(hidden_dim), None)
         ])
 
-        self.logit_scale = nn.Parameter(torch.ones([]) * np.log(1 / 0.07))
+        
+        
         self.initialize_parameters()
 
     def initialize_parameters(self):
@@ -140,20 +144,18 @@ class ClipNet(nn.Module):
         mask.triu_(1)  # zero out the lower diagonal
         return mask
 
-    def encode_image(self, x):
+    def encode_image(self, x, loc):
         x = self.image_encoder.features(x)
         x = self.image_encoder.avgpool(x)
         x = torch.flatten(x, 1)
-
+        loc = self.locLayer(loc)
+        x = torch.cat((x, loc), dim=-1)
         x = self.image_encoder.classifier(x)
         return x
 
-    def encode_text(self, text, loc):
-        loc = self.locLayer(loc).unsqueeze(1) # [batch_size, 1, d_model]
-        x = self.token_embedding(text) # [batch_size, n_ctx, d_model]
-
-        x = torch.cat((x[:,:-1], loc, x[:,-1:]), dim=1)
+    def encode_text(self, text):
         
+        x = self.token_embedding(text) # [batch_size, n_ctx, d_model]        
         x = x + self.positional_embedding
 
         x = x.permute(1, 0, 2) # NLD -> LND
@@ -168,8 +170,8 @@ class ClipNet(nn.Module):
         return x
 
     def forward(self, img, text, loc):
-        image_features = self.encode_image(img)
-        text_features = self.encode_text(text, loc)
+        image_features = self.encode_image(img, loc)
+        text_features = self.encode_text(text)
         
         # normalized features
         image_features = image_features / image_features.norm(dim=1, keepdim=True)

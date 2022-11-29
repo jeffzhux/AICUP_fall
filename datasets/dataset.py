@@ -420,11 +420,9 @@ class Clip_ImageFolder(ImageFolder):
                     if is_valid_file(path):
                         if self.training:
                             text = [area_vocab['startoftext']] + filename_to_loc[fname][2] + [area_vocab[root.split('\\')[-1]], area_vocab['endoftext']]
-                            loc = filename_to_loc[fname][:2]
                         else:
                             text = [[area_vocab['startoftext']] + filename_to_loc[fname][2] + [area_vocab[k], area_vocab['endoftext']] for k, v in class_to_idx.items()]
-                            loc = [filename_to_loc[fname][:2]] * len(class_to_idx)
-                        item = path, class_index, loc, text
+                        item = path, class_index, filename_to_loc[fname][:2], text
                         instances.append(item)
 
                         if target_class not in available_classes:
