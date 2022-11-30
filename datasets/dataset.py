@@ -282,7 +282,7 @@ class loc_ImageFolder(ImageFolder):
                 return self.has_file_allowed_extension(x, extensions)  # type: ignore[arg-type]
 
         filename_to_loc = {}
-        with open('./training/tag_locCoor.csv', mode = 'r') as inp:
+        with open('./data/ID/tag_locCoor.csv', mode = 'r') as inp:
             reader = csv.reader(inp)
             for i, v in enumerate(reader):
                 if i > 0:
@@ -395,7 +395,7 @@ class Clip_ImageFolder(ImageFolder):
                 return self.has_file_allowed_extension(x, extensions)  # type: ignore[arg-type]
 
         filename_to_loc = {}
-        with open('./training/tag_locCoor.csv', mode = 'r') as inp:
+        with open('./data/ID/tag_locCoor.csv', mode = 'r') as inp:
             reader = csv.reader(inp)
             for i, v in enumerate(reader):
                 if i > 0:

@@ -133,17 +133,17 @@ test_loader = torch.utils.data.DataLoader(
 
 
 
-# areas = []
-# for k, v in data.items():
-#     if k not in areas:
-#         areas.append(k) 
-#     for vi in v:
-#         if vi not in areas:
-#             areas.append(vi)
-# idx = 33
-# for a in areas:
-#     print(f'\'{a}\':{idx},')
-#     idx += 1
+from utils.kmean import KMEANS
+import numpy as np
+import matplotlib.cm as cm
+import matplotlib.pyplot as plt
 
-a = [torch.tensor([[4.8488, 1.5514]]), torch.tensor([[4.8488, 1.5514]])]
-print(torch.cat(a,dim=0))
+n_clusters = 5
+colors = cm.nipy_spectral(np.linspace(0, 1, n_clusters))
+matrix = torch.randn((1000,2))
+
+kmean = KMEANS(n_clusters = n_clusters, verbose=False)
+kmean.fit(matrix)
+for i in range(n_clusters):
+    plt.scatter(matrix[kmean.labels == i][:,0], matrix[kmean.labels == i][:, 1], color=colors[i])
+plt.savefig('test.png')
