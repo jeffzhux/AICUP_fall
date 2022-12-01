@@ -1,10 +1,10 @@
 # init
-seed = 3022
+seed = 1022
 amp = False
 
 #train
-epochs = 1#25
-batch_size = 16#128
+epochs = 1#100
+batch_size = 128#128
 
 #data
 data_root = './data/ID'
@@ -19,7 +19,7 @@ data = dict(
     sampler = dict(
         type='RASampler',
         shuffle = True,
-        repetitions = 1
+        repetitions = 4
     ),
     train = dict(
         root=f'{data_root}/train',
@@ -68,11 +68,9 @@ loss = dict(
 
 # optimizer
 lr = 0.0025
-weight_decay = 1e-04
+weight_decay = 1e-4
 optimizer = dict(
-    type = 'SAM',
-    rho = 2.0,
-    adaptive = True,
+    type = 'SGD',
     lr = lr,
     momentum = 0.9,
     weight_decay = weight_decay,
@@ -91,9 +89,9 @@ lr_cfg = dict(  # passed to adjust_learning_rate(cfg=lr_cfg)
 
 
 #log & save
-log_interval = 200
-save_interval = 5
-work_dir = './experiment/efficientV2S_Progressing3/base1_3'
+log_interval = 100
+save_interval = 20
+work_dir = './experiment/efficientV2S_Progressing3/base1_3'#'./experiment/efficientV2S_LOC'
 port = 10001
 resume = None # (路徑) 從中斷的地方開始 train
 load = './experiment/efficientV2S_Progressing3/base1_2/20221128_102223/epoch_100.pth' # (路徑) 載入訓練好的模型 test

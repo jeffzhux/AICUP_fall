@@ -79,7 +79,7 @@ def iterate_data(model, dataloader, cfg):
         pred_class.append(logits.cpu())
         target.append(labels.cpu())
         features.append(image_features.cpu())
-        break
+        
     pred_class = torch.cat(pred_class)
     target = torch.cat(target)
     features = torch.cat(features)
@@ -88,23 +88,16 @@ def iterate_data(model, dataloader, cfg):
 @torch.no_grad()
 def run_eval(model, test_loader, dataset, cfg):
     
-    # text_features = model.module.token_embedding(model.module.label_token)
-    # text_features = text_features / text_features.norm(dim=1, keepdim=True)
-
     pred_class, target, img_features = iterate_data(model, test_loader, cfg)
-    mean_std = torch.load('./mean_std.pt')
-    values, indices = torch.max(pred_class, dim=-1)
-    print(pred_class[11])
-    
+
 
     pred_class = F.softmax(pred_class, dim=-1).cpu()
     target = torch.argmax(target, dim=-1).cpu()
-    exit()
     
     metrix = Metric(pred_class.size(-1))
     metrix.update(pred_class, target)
     confuse_matrix = metrix.confusion_matrix().numpy()
-    acc = metrix.accuracy('none')
+    acc = metrix.accuracy('mean')
     wp = metrix.weighted_precision(0.7)
     if cfg.draw:
         fig, ax = plt.subplots(figsize=(20,20))
