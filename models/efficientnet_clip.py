@@ -3,7 +3,6 @@ import torch
 import torch.nn as nn
 from utils.config import ConfigDict
 import torchvision
-from utils.kmean import KMEANS
 from typing import List, Optional, Tuple
 
 class ProjectionHead(nn.Module):
@@ -86,22 +85,22 @@ class LocClipNet(nn.Module):
 
 class KmeanClipNet(nn.Module):
     def __init__(self, cfg: ConfigDict):
-        super(LocClipNet, self).__init__()
+        super(KmeanClipNet, self).__init__()
         args = cfg.copy()
 
         backbone_args = cfg.backbone.copy()
 
         backbone_name = backbone_args.pop('type')
         num_classes = backbone_args.pop('num_classes')
-        num_extra_others = backbone_args.pop('num_extra_others') if hasattr(cfg, 'num_extra_others') else 0
+        num_extra_others = backbone_args.pop('num_extra_others') if hasattr(backbone_args, 'num_extra_others') else 0
 
         self.backbone = getattr(torchvision.models, backbone_name)(**backbone_args)
-        
+
         locDim = 128
         input_dim = self.backbone.classifier[-1].in_features + locDim
         hidden_dim = 2048
         output_dim = 2048
-        self.label_token = torch.tensor(range(num_classes + num_extra_others))
+        self.label_token = torch.tensor(range(num_classes + num_extra_others), device='cuda')
         self.logit_scale = nn.Parameter(torch.ones([]) * np.log(1 / 0.07))
         self.token_embedding = nn.Embedding(num_classes + num_extra_others, output_dim)
         self.locLayer = nn.Linear(2, locDim)
@@ -114,14 +113,14 @@ class KmeanClipNet(nn.Module):
     def image_encoding(self, x, loc):
         x = self.backbone.features(x)
         x = self.backbone.avgpool(x)
-        z = torch.flatten(x, 1)
+        x = torch.flatten(x, 1)
         loc = self.locLayer(loc)
-        x = torch.cat((z, loc), dim=-1)
+        x = torch.cat((x, loc), dim=-1)
         x = self.backbone.classifier(x)
-        return x, z
+        return x
 
     def forward(self, x, loc):
-        image_features, z = self.image_encoding(x, loc)
+        image_features= self.image_encoding(x, loc)
         text_features = self.token_embedding(self.label_token)
 
         # normalized features
@@ -132,4 +131,4 @@ class KmeanClipNet(nn.Module):
         logit_scale = self.logit_scale.exp()
         logits_per_image = logit_scale * image_features @ text_features.t()
 
-        return logits_per_image, z
+        return logits_per_image

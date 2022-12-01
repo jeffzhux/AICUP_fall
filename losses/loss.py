@@ -13,6 +13,26 @@ class MixUpLoss(nn.Module):
         (y_a, y_b, lam) = labels
         return lam * self.criterion(pred, y_a) + (1 - lam) * self.criterion(pred, y_b)
 
+class KmeanClipLoss(nn.Module):
+    def __init__(self, num_extra_others, **args) -> None:
+        super(KmeanClipLoss, self).__init__()
+        self.num_extra_others = num_extra_others
+        self.criterion = nn.CrossEntropyLoss(**args)
+        self.other_criterion = nn.CrossEntropyLoss(**args)
+    
+    def forward(self, logit, label):
+        logit = logit.softmax(dim=-1)
+        class_logit = logit[:, :-(self.num_extra_others+1)]
+        other_logit = logit[:, -(self.num_extra_others+1):]
+        logit = torch.cat((class_logit, torch.sum(other_logit, dim=-1, keepdim=True)), dim=-1)
+
+        class_label = label[:, :-(self.num_extra_others+1)]
+        other_label = label[:, -(self.num_extra_others+1):]
+        label = torch.cat((class_label, torch.sum(other_label, dim=-1, keepdim=True)), dim=-1)
+
+        loss = self.criterion(logit, label) + self.other_criterion(other_logit, other_label)
+        return loss
+
 class ClipLoss(nn.Module):
     def __init__(self, t=0.5, **args) -> None:
         super(ClipLoss, self).__init__()
