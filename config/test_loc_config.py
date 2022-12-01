@@ -24,7 +24,7 @@ data = dict(
         type = 'loc_ImageFolder',
         transform = dict(
             type='base',
-            size = (356, 356)
+            size = (480, 480)
         ),
     )
     
@@ -53,7 +53,7 @@ model = dict(
 #log & save
 output_file_name = None#'submission'
 work_dir = './test_experiment/efficient_loc'
-# load = './experiment/efficientV2S_LOC/20221127_234539/epoch_100.pth'
-load = './experiment/efficientV2S_Progressing3/base1_2/20221128_102223/epoch_100.pth'
+load = './experiment/efficientV2S_Progressing3/base1_3/20221201_102338/epoch_20.pth'
+# load = './experiment/efficientV2S_Progressing3/base1_2/20221128_102223/epoch_100.pth'
 port = 10001
 

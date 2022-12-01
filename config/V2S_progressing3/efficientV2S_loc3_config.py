@@ -3,7 +3,7 @@ seed = 1022
 amp = False
 
 #train
-epochs = 1#100
+epochs = 1#25
 batch_size = 128#128
 
 #data
@@ -89,8 +89,8 @@ lr_cfg = dict(  # passed to adjust_learning_rate(cfg=lr_cfg)
 
 
 #log & save
-log_interval = 100
-save_interval = 20
+log_interval = 200
+save_interval = 5
 work_dir = './experiment/efficientV2S_Progressing3/base1_3'#'./experiment/efficientV2S_LOC'
 port = 10001
 resume = None # (路徑) 從中斷的地方開始 train
