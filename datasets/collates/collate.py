@@ -51,6 +51,19 @@ class ClipFunction(nn.Module):
         return torch.concat((img1, img2), dim=0), torch.concat((lab1, lab2), dim=0), loc, text
 
 
+class locPathCollateFunction(nn.Module):
+    def __init__(self):
+        super(locPathCollateFunction, self).__init__()
+
+    def forward(self, batch: List[tuple]):
+        
+        img, lab, loc, path = map(list,zip(*batch))
+        img = torch.stack(img)
+        lab = torch.stack(lab)
+        loc = torch.tensor(loc)
+
+        return img, lab, loc, path
+
 class locCollateFunction(nn.Module):
     def __init__(self):
         super(locCollateFunction, self).__init__()

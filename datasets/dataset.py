@@ -2,11 +2,13 @@ import numpy as np
 import os
 import csv
 import torch
-from torchvision.datasets import ImageFolder
+from torchvision.datasets import ImageFolder, VisionDataset
 import  torch.nn.functional as F
 from typing import Any, Callable, cast, Dict, List, Optional, Tuple, Union
 from datasets.tokenizer import area_vocab
 from datasets.transforms.aicup import base
+from torch.utils.data import Dataset
+from PIL import Image
 
 class AICUP_ImageFolder(ImageFolder):
     """A generic data loader where the images are arranged in this way by default: ::
@@ -183,20 +185,49 @@ class Group_ImageFolder(ImageFolder):
         target = target.type(torch.float32)
         return sample, target
 
+class loc_Dataset(Dataset):
+    def __init__(self, sample, transforms=None):
+        super(loc_Dataset, self).__init__()
+        self.sample = sample
+        self.transform = transforms
+
+    def pil_loader(self, path: str) -> Image.Image:
+        with open(path, "rb") as f:
+            img = Image.open(f)
+            return img.convert("RGB")
+
+    def __getitem__(self, index):
+        assert len(self.tensors[0]) == len(self.tensors[1]), f"label({len(self.tensors[1])}) is not eqally to image({len(self.tensors[0])})"
+        assert index <= len(self.tensors[1]), f"index({index}) is out of range of label({len(self.tensors[1])})"
+        path, target, loc = self.tensors[index]
+        
+        sample = self.pil_loader(path)
+        if self.transform is not None:
+            sample = self.transform(sample)
+
+        target = self.tensors[1][index].item()
+
+        target = torch.tensor(target)
+        target = F.one_hot(target, self.num_of_classes)
+        target = target.type(torch.float32)
+
+        return sample,  target, loc
+    
+    def __len__(self):
+        return len(self.sample)
+
+
 
 class loc_ImageFolder(ImageFolder):
     def __init__(
         self,
         root: str,
+        loc_file_path: str,
         transform: Optional[Callable] = None,
         target_transform: Optional[Callable] = None
     ):
-        super().__init__(
-            root,
-            transform=transform,
-            target_transform=target_transform
-        )
-
+        self.loc_file_path = loc_file_path
+        super().__init__(root, transform=transform, target_transform=target_transform)
         self.num_of_classes = len(self.classes)
 
     def has_file_allowed_extension(self, filename: str, extensions: Union[str, Tuple[str, ...]]) -> bool:
@@ -239,7 +270,7 @@ class loc_ImageFolder(ImageFolder):
                 return self.has_file_allowed_extension(x, extensions)  # type: ignore[arg-type]
 
         filename_to_loc = {}
-        with open('./data/ID/tag_locCoor.csv', mode = 'r') as inp:
+        with open(self.loc_file_path, mode = 'r') as inp:
             reader = csv.reader(inp)
             for i, v in enumerate(reader):
                 if i > 0:
@@ -277,12 +308,6 @@ class loc_ImageFolder(ImageFolder):
         return instances
 
     def __getitem__(self, index: int) -> Tuple[Any, Any]:
-        """
-        Args:
-            index (int): Index
-        Returns:
-            tuple: (sample, target) where target is class_index of the target class.
-        """
         path, target, loc = self.samples[index]
         sample = self.loader(path)
         if self.transform is not None:
@@ -294,6 +319,20 @@ class loc_ImageFolder(ImageFolder):
 
         return sample, target, loc
 
+class locwithPath_ImageFolder(loc_ImageFolder):
+    def __init__(self, **args):
+        super().__init__(**args)
+    def __getitem__(self, index: int) -> Tuple[Any, Any]:
+        path, target, loc = self.samples[index]
+        sample = self.loader(path)
+        if self.transform is not None:
+            sample = self.transform(sample)
+
+        target = torch.tensor(target)
+        target = F.one_hot(target, self.num_of_classes)
+        target = target.type(torch.float32)
+
+        return sample, target, loc, path
 
 class Kmean_ImageFolder(ImageFolder):
     def __init__(

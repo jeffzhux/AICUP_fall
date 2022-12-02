@@ -1,13 +1,14 @@
 # init
 seed = 1022
 amp = False
+do_semi = True
 
 #train
-epochs = 100#100
-batch_size = 256#512
+epochs = 1#100
+batch_size = 16#256
 
 #data
-data_root = './data/ID'
+data_root = './data'
 num_workers = 8
 num_classes = 33
 data = dict(
@@ -22,7 +23,7 @@ data = dict(
         repetitions = 4
     ),
     train = dict(
-        root=f'{data_root}/train',
+        root=f'{data_root}/ID/train',
         type = 'loc_ImageFolder',
         loc_file_path = './data/ID/tag_locCoor.csv',
         transform = dict(
@@ -31,8 +32,17 @@ data = dict(
             lighting = 0.1
         )
     ),
+    unlabedled = dict(
+        root=f'{data_root}/Test',
+        type = 'locwithPath_ImageFolder',
+        loc_file_path = './data/Test/tag_loccoor_public.csv',
+        transform = dict(
+            type='base',
+            size = (224, 224),
+        )
+    ),
     vaild = dict(
-        root=f'{data_root}/valid',
+        root=f'{data_root}/ID/valid',
         type = 'loc_ImageFolder',
         loc_file_path = './data/ID/tag_locCoor.csv',
         transform = dict(
@@ -93,8 +103,8 @@ lr_cfg = dict(  # passed to adjust_learning_rate(cfg=lr_cfg)
 #log & save
 log_interval = 100
 save_interval = 20
-work_dir = './experiment/efficientV2S_Progressing3/base1_2'#'./experiment/efficientV2S_LOC'
+work_dir = './experiment/efficientV2S_semi'#'./experiment/efficientV2S_LOC'
 port = 10001
 resume = None # (路徑) 從中斷的地方開始 train
-load = './experiment/efficientV2S_LOC/20221127_234539/epoch_100.pth' # (路徑) 載入訓練好的模型 test
+load = './experiment/efficientV2S_Progressing3/base1_1/20221127_234539/epoch_100.pth' # (路徑) 載入訓練好的模型 test
 

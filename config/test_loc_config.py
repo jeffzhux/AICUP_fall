@@ -53,7 +53,7 @@ model = dict(
 #log & save
 output_file_name = None#'submission'
 work_dir = './test_experiment/efficient_loc'
-load = './experiment/efficientV2S_Progressing3/base1_3/20221201_102338/epoch_20.pth'
+load = './experiment/efficientV2S_Progressing3/base1_3/20221201_102338/epoch_40.pth'
 # load = './experiment/efficientV2S_Progressing3/base1_2/20221128_102223/epoch_100.pth'
 port = 10001
 

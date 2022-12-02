@@ -2,25 +2,26 @@
 import os
 import platform
 import argparse
+import numpy as np
 from datasets.collates.build import build_collate
 from utils.config import Config
 import time
-import torch.backends.cudnn as cudnn
 import torch.multiprocessing as mp
 import torch.distributed as dist
+from torch.cuda.amp import autocast, GradScaler
 import torch
-import torch.nn as nn
-
+from torch.utils.data import ConcatDataset
 
 from torch.utils.tensorboard import SummaryWriter
 from utils.util import AverageMeter, TrackMeter, accuracy, adjust_learning_rate, format_time, set_seed, set_weight_decay
 from utils.build import build_logger
+from datasets.sampler import build_sampler
 from datasets.build import build_dataset
-from datasets.sampler.build import build_sampler
-from datasets.collates import locCollateFunction
 from models.build import build_model, build_ema_model
 from losses.build import build_loss
 from optimizers.build import build_optimizer
+from datasets.collates import locCollateFunction, locPathCollateFunction
+from datasets.dataset import loc_Dataset
 
 def get_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
@@ -51,17 +52,17 @@ def get_config(args: argparse.Namespace) -> Config:
 
     return cfg
 
-def load_weights(ckpt_path, model, model_ema, optimizer, resume=True) -> None:
-
-    # load checkpoint 
-    print(f"==> Loading Checkpoint {ckpt_path}")
-    assert os.path.isfile(ckpt_path), 'file is not exist'
+def load_weights(ckpt_path, model, model_ema, optimizer, scaler, resume=True) -> int:
+    # load checkpoint
+    print("==> Loading checkpoint '{}'".format(ckpt_path))
+    assert os.path.isfile(ckpt_path)
     checkpoint = torch.load(ckpt_path, map_location='cuda')
 
     if resume:
         # load model & optimizer
         model.load_state_dict(checkpoint['model_state'])
         optimizer.load_state_dict(checkpoint['optimizer_state'])
+        scaler.load_state_dict(checkpoint['scaler'])
 
         if model_ema is not None:
             model_ema.load_state_dict(checkpoint['model_ema_state'])
@@ -77,7 +78,41 @@ def load_weights(ckpt_path, model, model_ema, optimizer, resume=True) -> None:
 
     return start_epoch
 
-def train(model, model_ema, dataloader, criterion, optimizer, epoch, cfg, logger=None, writer=None):
+def get_pseudo_labels(model, dataloader):
+
+    model.eval() # 開啟batch normalization 和 dropout
+    end = time.time()
+    
+    paths = []
+    labels = []
+    locs = []
+
+    with torch.no_grad():
+        for idx, (images, _, loc, path) in enumerate(dataloader):
+            images = images.cuda(non_blocking=True)
+            loc = loc.cuda(non_blocking=True)
+
+            # forward
+            logits = model(images, loc)
+            max_probs, pseudo_idx = torch.max(logits.softmax(dim=-1), dim=-1)
+
+            mask = (max_probs > 0.8).nonzero(as_tuple=True)[0].tolist()
+            # mask = (max_probs > 0.8).tolist()
+
+            paths.extend(np.array(path)[mask])
+            labels.append(pseudo_idx[mask])
+            locs.append(loc[mask])
+            
+        
+        labels = torch.cat(labels).cpu().tolist()
+        locs = torch.cat(locs).cpu().tolist()
+
+    epoch_time = format_time(time.time() - end)
+    output_dataset = loc_Dataset(list(zip(paths, labels, locs)))
+
+    return output_dataset
+
+def train(model, model_ema, dataloader, criterion, optimizer, epoch, scaler, cfg, logger=None, writer=None):
     model.train() # 開啟batch normalization 和 dropout
     
     batch_time = AverageMeter()
@@ -100,8 +135,9 @@ def train(model, model_ema, dataloader, criterion, optimizer, epoch, cfg, logger
         data_time.update(time.time() - iter_end)
 
         # compute output
-        logits= model(imgs, loc)
-        loss = criterion(logits, labels)
+        with autocast(enabled=scaler is not None):
+            logits= model(imgs, loc)
+            loss = criterion(logits, labels)
 
         losses.update(loss.item(), batch_size)
 
@@ -111,20 +147,20 @@ def train(model, model_ema, dataloader, criterion, optimizer, epoch, cfg, logger
 
         # compute gradient and do SGD step
         optimizer.zero_grad()
-        # smp first forward-backward pass
-        with model.no_sync():
+        if scaler is not None:
+            scaler.scale(loss).backward()
+            scaler.step(optimizer)
+            scaler.update()
+        else:
             loss.backward()
-        optimizer.first_step(zero_grad=True)
-        # smp second forward-backward pass
-        criterion(model(imgs, loc), labels).backward()
-        optimizer.second_step(zero_grad=True)
+            optimizer.step()
 
         if model_ema and idx % cfg.model_ema.steps == 0:
             model_ema.update_parameters(model)
             if epoch < cfg.lr_cfg.warmup_steps:
                 # Reset ema buffer to keep copying weights during warmup period
                 model_ema.n_averaged.fill_(0)
-                
+        
         # measure elapsed time
         batch_time.update(time.time() - iter_end)
         iter_end = time.time()
@@ -159,28 +195,40 @@ def valid(model, dataloader, criterion, optimizer, epoch, cfg, logger, writer):
     losses = AverageMeter()
     top1 = AverageMeter()
     top5 = AverageMeter()
+    test_meter = TrackMeter()
     end = time.time()
 
     with torch.no_grad():
         for idx, (images, targets, loc) in enumerate(dataloader):
             images = images.cuda(non_blocking=True)
             targets = targets.cuda(non_blocking=True)
+
             loc = loc.cuda(non_blocking=True)
             batch_size = targets.shape[0]
 
             # forward
             logits = model(images, loc)
             loss = criterion(logits, targets)
-            
-            ########### 測試group準確率 記得要修改回來 ###################
             acc1, acc5 = accuracy(logits, targets, topk=(1,5))
-            # acc1, acc5 = group_accuracy(logits, targets, cfg.groups_range, topk=(1,5))
+
             # update metric
             losses.update(loss.item(), batch_size)
             top1.update(acc1.item(), batch_size)
             top5.update(acc5.item(), batch_size)
 
     epoch_time = format_time(time.time() - end)
+
+    ''' save best
+    if top1.avg > test_meter.max_val:
+        model_path = os.path.join(cfg.work_dir, f'best_{cfg.cfgname}.pth')
+        state_dict={
+            'model_state': model.state_dict(),
+            'optimizer_state': optimizer.state_dict(),
+            'acc': top1.avg,
+            'epoch':epoch
+        }
+        torch.save(state_dict, model_path)
+    '''
 
     if logger is not None:
         logger.info(f'Epoch [{epoch}] - epoch_time: {epoch_time}, '
@@ -219,7 +267,6 @@ def main_worker(rank, world_size, cfg):
     print('batch_size per gpu:', cfg.bsz_gpu)
     
     # build dataset
-
     train_set =  build_dataset(cfg.data.train)
     train_collate = build_collate(cfg.data.collate)
     train_sampler = build_sampler(train_set, cfg.data.sampler)
@@ -232,6 +279,16 @@ def main_worker(rank, world_size, cfg):
         sampler=train_sampler,
         drop_last=True
     )
+    unlabeled_set = build_dataset(cfg.data.unlabedled)
+    unlabeled_collate = locPathCollateFunction()
+    unlabeled_loader = torch.utils.data.DataLoader(
+        unlabeled_set,
+        batch_size=cfg.bsz_gpu,
+        num_workers=cfg.num_workers,
+        collate_fn = unlabeled_collate,
+        pin_memory=True,
+        drop_last=False
+    )
     valid_set = build_dataset(cfg.data.vaild)
     valid_collate = locCollateFunction()
     valid_loader = torch.utils.data.DataLoader(
@@ -242,7 +299,7 @@ def main_worker(rank, world_size, cfg):
         pin_memory=True,
         drop_last=True
     )
-    
+
     # build model
     model = build_model(cfg.model)
     model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model).cuda()
@@ -252,31 +309,49 @@ def main_worker(rank, world_size, cfg):
     # build optimizer
     # parameters = set_weight_decay(model, cfg.weight_decay)
     optimizer = build_optimizer(cfg.optimizer, model.parameters())
+    # fp16 or fp32
+    scaler = GradScaler() if cfg.amp else None
 
     #如果網路當中有不需要backward的find_unused_parameters 要設為 True
     model = torch.nn.parallel.DistributedDataParallel(model, device_ids=[cfg.local_rank], find_unused_parameters=False)
     model_without_ddp = model.module
 
     model_ema = build_ema_model(model_without_ddp, cfg)
-    
+
     start_epoch = 1
     if cfg.resume:
-        start_epoch = load_weights(cfg.resume, model_without_ddp, model_ema, optimizer, resume=True)
+        start_epoch = load_weights(cfg.resume, model_without_ddp, model_ema, optimizer, scaler, resume=True)
     elif cfg.load:
-        start_epoch = load_weights(cfg.load, model_without_ddp, model_ema, optimizer, resume=False)
+        start_epoch = load_weights(cfg.load, model_without_ddp, model_ema, optimizer, scaler, resume=False)
     
     for epoch in range(start_epoch, cfg.epochs + 1):
         train_sampler.set_epoch(epoch)
-        adjust_learning_rate(cfg.lr_cfg, optimizer.base_optimizer, epoch)
+        adjust_learning_rate(cfg.lr_cfg, optimizer, epoch)
+
+        if cfg.do_semi:
+            pseudo_set = get_pseudo_labels(model, unlabeled_loader)
+            concat_dataset = ConcatDataset([train_set, pseudo_set]) if len(pseudo_set) != 0 else train_set
+            train_sampler = build_sampler(concat_dataset, cfg.data.sampler)
+            print(len(train_loader))
+            train_loader = torch.utils.data.DataLoader(
+                concat_dataset,
+                batch_size=cfg.bsz_gpu,
+                num_workers=cfg.num_workers,
+                collate_fn = train_collate,
+                pin_memory=True,
+                sampler=train_sampler,
+                drop_last=True
+            )
+            print(len(train_loader))
 
         # train; all processes
-        train(model, model_ema, train_loader, criterion, optimizer, epoch, cfg, logger, writer)
+        train(model, model_ema, train_loader, criterion, optimizer, epoch, scaler, cfg, logger, writer)
         
         if model_ema:
             valid(model_ema, valid_loader, criterion, optimizer, epoch, cfg, logger, writer)
         else:
             valid(model, valid_loader, criterion, optimizer, epoch, cfg, logger, writer)
-
+        
         # save ckpt; master process
         if rank == 0 and epoch % cfg.save_interval == 0:
             model_path = os.path.join(cfg.work_dir, f'epoch_{epoch}.pth')
@@ -285,6 +360,8 @@ def main_worker(rank, world_size, cfg):
                 'model_state': model_without_ddp.state_dict(),
                 'epoch': epoch
             }
+            if scaler:
+                state_dict['scaler'] = scaler.state_dict()
             if model_ema:
                 state_dict['model_ema_state'] = model_ema.state_dict()
             torch.save(state_dict, model_path)
