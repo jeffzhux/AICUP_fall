@@ -19,6 +19,7 @@ from datasets.sampler import build_sampler
 from datasets.build import build_dataset
 from models.build import build_model, build_ema_model
 from losses.build import build_loss
+from datasets.transforms import build_transform
 from optimizers.build import build_optimizer
 from datasets.collates import locCollateFunction, locPathCollateFunction
 from datasets.dataset import loc_Dataset
@@ -78,7 +79,7 @@ def load_weights(ckpt_path, model, model_ema, optimizer, scaler, resume=True) ->
 
     return start_epoch
 
-def get_pseudo_labels(model, dataloader):
+def get_pseudo_labels(model, dataloader, epoch, cfg, logger):
 
     model.eval() # 開啟batch normalization 和 dropout
     end = time.time()
@@ -101,14 +102,19 @@ def get_pseudo_labels(model, dataloader):
 
             paths.extend(np.array(path)[mask])
             labels.append(pseudo_idx[mask])
-            locs.append(loc[mask])
-            
+            locs.append(loc[mask])    
         
         labels = torch.cat(labels).cpu().tolist()
         locs = torch.cat(locs).cpu().tolist()
 
     epoch_time = format_time(time.time() - end)
-    output_dataset = loc_Dataset(list(zip(paths, labels, locs)))
+
+    transform = build_transform(cfg.data.train.transform)
+    output_dataset = loc_Dataset(list(zip(paths, labels, locs)), cfg.num_classes, transforms=transform)
+
+    logger.info(f'Epoch [{epoch}] - epoch_time: {epoch_time},  '
+                f'add unlabel data: {len(output_dataset)}  ')
+
 
     return output_dataset
 
@@ -286,6 +292,7 @@ def main_worker(rank, world_size, cfg):
         batch_size=cfg.bsz_gpu,
         num_workers=cfg.num_workers,
         collate_fn = unlabeled_collate,
+        shuffle=False,
         pin_memory=True,
         drop_last=False
     )
@@ -296,6 +303,7 @@ def main_worker(rank, world_size, cfg):
         batch_size=cfg.bsz_gpu,
         num_workers=cfg.num_workers,
         collate_fn = valid_collate,
+        shuffle=False,
         pin_memory=True,
         drop_last=True
     )
@@ -329,10 +337,9 @@ def main_worker(rank, world_size, cfg):
         adjust_learning_rate(cfg.lr_cfg, optimizer, epoch)
 
         if cfg.do_semi:
-            pseudo_set = get_pseudo_labels(model, unlabeled_loader)
+            pseudo_set = get_pseudo_labels(model, unlabeled_loader, epoch, cfg, logger)
             concat_dataset = ConcatDataset([train_set, pseudo_set]) if len(pseudo_set) != 0 else train_set
             train_sampler = build_sampler(concat_dataset, cfg.data.sampler)
-            print(len(train_loader))
             train_loader = torch.utils.data.DataLoader(
                 concat_dataset,
                 batch_size=cfg.bsz_gpu,
@@ -342,7 +349,6 @@ def main_worker(rank, world_size, cfg):
                 sampler=train_sampler,
                 drop_last=True
             )
-            print(len(train_loader))
 
         # train; all processes
         train(model, model_ema, train_loader, criterion, optimizer, epoch, scaler, cfg, logger, writer)

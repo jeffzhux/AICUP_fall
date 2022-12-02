@@ -186,10 +186,11 @@ class Group_ImageFolder(ImageFolder):
         return sample, target
 
 class loc_Dataset(Dataset):
-    def __init__(self, sample, transforms=None):
+    def __init__(self, sample, num_of_classes, transforms=None):
         super(loc_Dataset, self).__init__()
         self.sample = sample
         self.transform = transforms
+        self.num_of_classes = num_of_classes
 
     def pil_loader(self, path: str) -> Image.Image:
         with open(path, "rb") as f:
@@ -197,15 +198,11 @@ class loc_Dataset(Dataset):
             return img.convert("RGB")
 
     def __getitem__(self, index):
-        assert len(self.tensors[0]) == len(self.tensors[1]), f"label({len(self.tensors[1])}) is not eqally to image({len(self.tensors[0])})"
-        assert index <= len(self.tensors[1]), f"index({index}) is out of range of label({len(self.tensors[1])})"
-        path, target, loc = self.tensors[index]
+        path, target, loc = self.sample[index]
         
         sample = self.pil_loader(path)
         if self.transform is not None:
             sample = self.transform(sample)
-
-        target = self.tensors[1][index].item()
 
         target = torch.tensor(target)
         target = F.one_hot(target, self.num_of_classes)
