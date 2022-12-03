@@ -10,8 +10,6 @@ batch_size = 32#512
 data_root = './data/ID'
 num_workers = 8
 num_classes = 33
-num_extra_others = 2
-
 data = dict(
     collate = dict(
         type = 'locCollate',
@@ -23,24 +21,10 @@ data = dict(
         shuffle = True,
         repetitions = 4
     ),
-    others_sampler = dict(
-        type='Others_Sampler',
-        shuffle = False
-    ),
     train = dict(
         root=f'{data_root}/train',
-        type = 'Kmean_ImageFolder',
-        num_extra_others = num_extra_others,
-        transform = dict(
-            type='baseOnTrivialAugment',
-            size = (128, 128),
-            lighting = 0.1
-        )
-    ),
-    other_train = dict(
-        root=f'{data_root}/train',
-        type = 'Kmean_ImageFolder',
-        num_extra_others = num_extra_others,
+        type = 'loc_ImageFolder',
+        loc_file_path = './data/ID/tag_locCoor.csv',
         transform = dict(
             type='baseOnTrivialAugment',
             size = (128, 128),
@@ -49,8 +33,8 @@ data = dict(
     ),
     vaild = dict(
         root=f'{data_root}/valid',
-        type = 'Kmean_ImageFolder',
-        num_extra_others = num_extra_others,
+        type = 'loc_ImageFolder',
+        loc_file_path = './data/ID/tag_locCoor.csv',
         transform = dict(
             type='base',
             size = (128, 128)
@@ -61,29 +45,28 @@ data = dict(
 # model
 model_ema = dict(
     status = True,
-    steps=5,
+    steps=32,
     decay=0.99998
 )
 
 model = dict(
-    type="KmeanClipNet",
+    type="SimilarityNet",
     backbone = dict(
         type = 'efficientnet_v2_s',
         weights = 'EfficientNet_V2_S_Weights.IMAGENET1K_V1',
         dropout_rate = 0.1,
         num_classes = num_classes,
-        batch_size = batch_size,
-        num_extra_others = num_extra_others
+        batch_size = batch_size
     )
     
 )
 
 # loss
 loss = dict(
-    type = 'KmeanClipLoss',
-    num_classes = num_classes,
-    num_extra_others = num_extra_others,
+    type = 'SimilarityLoss',
     label_smoothing = 0.1,
+    alpha=0.001,
+    lam = 5e-3
 )
 
 
@@ -112,7 +95,7 @@ lr_cfg = dict(  # passed to adjust_learning_rate(cfg=lr_cfg)
 #log & save
 log_interval = 200
 save_interval = 20
-work_dir = './experiment/efficientV2S_kmean'
+work_dir = './experiment/efficientV2S_Similarity'
 port = 10001
 resume = None # (路徑) 從中斷的地方開始 train
 load = None # (路徑) 載入訓練好的模型 test

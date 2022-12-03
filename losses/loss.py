@@ -1,9 +1,11 @@
 import torch
 import torch.nn as nn
 import torch.nn.functional as F
+from torch.autograd import Variable
 import numpy as np
 
 from utils.config import ConfigDict
+
 
 class MixUpLoss(nn.Module):
     def __init__(self) -> None:
@@ -13,15 +15,38 @@ class MixUpLoss(nn.Module):
         (y_a, y_b, lam) = labels
         return lam * self.criterion(pred, y_a) + (1 - lam) * self.criterion(pred, y_b)
 
+class SimilarityLoss(nn.Module):
+    def __init__(self, alpha=0.001, lam = 5e-3, **args) -> None:
+        super(SimilarityLoss, self).__init__()
+        self.logit_criterion = nn.CrossEntropyLoss(**args)
+        self.text_criterion = nn.CrossEntropyLoss(**args)
+        self.lam = lam
+        self.alpha = alpha
+    def off_diagonal(self, x):
+        # return a flattened view of the off-diagonal elements of a square matrix
+        n, m = x.shape
+        assert n == m
+        return x.flatten()[:-1].view(n - 1, n + 1)[:, 1:].flatten()
+
+    def forward(self, logits_metrix, similarity_metrix, label):
+        D = similarity_metrix.size(1)
+        
+        logits_loss = self.logit_criterion(logits_metrix, label)
+        on_diag = torch.diagonal(similarity_metrix).add_(-1).pow_(2).sum()
+        off_diag = self.off_diagonal(similarity_metrix).pow_(2).sum()
+        dim_loss = on_diag + self.lam * off_diag
+        
+        return logits_loss + self.alpha * dim_loss
+
 class KmeanClipLoss(nn.Module):
-    def __init__(self, num_extra_others, **args) -> None:
+    def __init__(self, num_classes, num_extra_others, **args) -> None:
         super(KmeanClipLoss, self).__init__()
+        self.num_class = num_classes
         self.num_extra_others = num_extra_others
         self.criterion = nn.CrossEntropyLoss(**args)
-        self.other_criterion = nn.CrossEntropyLoss(**args)
     
     def forward(self, logit, label):
-        logit = logit.softmax(dim=-1)
+        
         class_logit = logit[:, :-(self.num_extra_others+1)]
         other_logit = logit[:, -(self.num_extra_others+1):]
         logit = torch.cat((class_logit, torch.sum(other_logit, dim=-1, keepdim=True)), dim=-1)
@@ -30,7 +55,7 @@ class KmeanClipLoss(nn.Module):
         other_label = label[:, -(self.num_extra_others+1):]
         label = torch.cat((class_label, torch.sum(other_label, dim=-1, keepdim=True)), dim=-1)
 
-        loss = self.criterion(logit, label) + self.other_criterion(other_logit, other_label)
+        loss = self.criterion(logit, label)
         return loss
 
 class ClipLoss(nn.Module):

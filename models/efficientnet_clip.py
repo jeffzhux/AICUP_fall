@@ -82,6 +82,28 @@ class LocClipNet(nn.Module):
 
         return logits_per_image
 
+class SimilarityNet(LocClipNet):
+
+    def __init__(self, cfg: ConfigDict):
+        super(SimilarityNet, self).__init__(cfg)
+
+    def forward(self, x, loc):
+        image_features = self.image_encoding(x, loc)
+        text_features = self.token_embedding(self.label_token)
+
+        # normalized features
+        image_features = image_features / image_features.norm(dim=1, keepdim=True)
+        text_features = text_features / text_features.norm(dim=1, keepdim=True)
+
+        # cosine similarity as logits
+        logit_scale = self.logit_scale.exp()
+        logits_metrix = logit_scale * image_features @ text_features.T
+
+        # cosine similarity as Dim
+        N = x.size(0)
+        similarity_metrix = (image_features.T @ text_features[torch.argmax(logits_metrix, dim=-1)]) / N
+        return logits_metrix, similarity_metrix
+
 
 class KmeanClipNet(nn.Module):
     def __init__(self, cfg: ConfigDict):

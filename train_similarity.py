@@ -2,15 +2,15 @@
 import os
 import platform
 import argparse
-import numpy as np
 from datasets.collates.build import build_collate
 from utils.config import Config
 import time
+import torch.backends.cudnn as cudnn
 import torch.multiprocessing as mp
 import torch.distributed as dist
 from torch.cuda.amp import autocast, GradScaler
 import torch
-from torch.utils.data import ConcatDataset
+
 
 from torch.utils.tensorboard import SummaryWriter
 from utils.util import AverageMeter, TrackMeter, accuracy, adjust_learning_rate, format_time, set_seed, set_weight_decay
@@ -19,11 +19,8 @@ from datasets.sampler import build_sampler
 from datasets.build import build_dataset
 from models.build import build_model, build_ema_model
 from losses.build import build_loss
-from datasets.transforms import build_transform
 from optimizers.build import build_optimizer
-from datasets.collates import locCollateFunction, locPathCollateFunction
-from datasets.dataset import loc_Dataset
-
+from datasets.collates import locCollateFunction
 def get_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument('config', type=str, help='config file path')
@@ -79,7 +76,7 @@ def load_weights(ckpt_path, model, model_ema, optimizer, scaler, resume=True) ->
 
     return start_epoch
 
-def train(model, model_ema, labeled_dataloader, unlabeled_dataloader, criterion, optimizer, epoch, scaler, cfg, logger=None, writer=None):
+def train(model, model_ema, dataloader, criterion, optimizer, epoch, scaler, cfg, logger=None, writer=None):
     model.train() # 開啟batch normalization 和 dropout
     
     batch_time = AverageMeter()
@@ -87,51 +84,29 @@ def train(model, model_ema, labeled_dataloader, unlabeled_dataloader, criterion,
     losses = AverageMeter()
     top1 = AverageMeter()
 
-    labeled_train_iter = iter(labeled_dataloader)
-    unlabeled_train_iter = iter(unlabeled_dataloader)
-    num_iter = len(labeled_dataloader)
+    num_iter = len(dataloader)
     iter_end = time.time()
     epoch_end = time.time()
-    for idx in range(num_iter):
-        try:
-            imgs, labels, loc = labeled_train_iter.next()
-        except:
-            labeled_train_iter = iter(labeled_dataloader)
-            imgs, labels, loc = labeled_train_iter.next()
-
+    for idx, (imgs, labels, loc) in enumerate(dataloader):
+        
         imgs = imgs.cuda(non_blocking=True)
         labels = labels.cuda(non_blocking=True)
         loc = loc.cuda(non_blocking=True)
-        
-        try:
-            (imgs_u, imgs_u2), loc_u = unlabeled_train_iter.next()
-        except:
-            unlabeled_train_iter = iter(unlabeled_dataloader)
-            (imgs_u, imgs_u2), loc_u = unlabeled_train_iter.next()
+
+        batch_size = imgs.size(0)
 
         # measure data loading time
         data_time.update(time.time() - iter_end)
 
-        with torch.no_grad():
-            outputs_u = model(imgs_u, loc_u)
-            outputs_u2 = model(imgs_u2, loc_u)
-            p = (torch.softmax(outputs_u, dim=1) + torch.softmax(outputs_u2, dim=1)) / 2
-            pt = p**(1 / 0.5) # T = 0.5
-            labels_u = pt / pt.sum(dim=1, keepdim=True)
-            labels_u = labels_u.detach()
-
-        
-
         # compute output
         with autocast(enabled=scaler is not None):
-            logits= model(imgs, loc)
-            loss = criterion(logits, labels)
+            logits_metrix, similarity_metrix = model(imgs, loc)
+            loss = criterion(logits_metrix, similarity_metrix, labels)
 
-        batch_size = imgs.size(0)
         losses.update(loss.item(), batch_size)
 
         # accurate
-        acc1, acc5 = accuracy(logits, labels, topk=(1,5))
+        acc1, acc5 = accuracy(logits_metrix, labels, topk=(1,5))
         top1.update(acc1.item(), batch_size)
 
         # compute gradient and do SGD step
@@ -164,7 +139,7 @@ def train(model, model_ema, labeled_dataloader, unlabeled_dataloader, criterion,
                         f'loss(loss avg): {loss:.3f}({losses.avg:.3f}),  '
                         f'train_Acc@1: {top1.avg:.3f}  '
             )
-        
+
     if logger is not None: 
         now = time.time()
         epoch_time = format_time(now - epoch_end)
@@ -177,7 +152,7 @@ def train(model, model_ema, labeled_dataloader, unlabeled_dataloader, criterion,
         writer.add_scalar('Train/lr', lr, epoch)
         writer.add_scalar('Train/loss', losses.avg, epoch)
         writer.add_scalar('Train/acc@1', top1.avg, epoch)
-
+    
 def valid(model, dataloader, criterion, optimizer, epoch, cfg, logger, writer):
     model.eval() # 開啟batch normalization 和 dropout
 
@@ -196,9 +171,9 @@ def valid(model, dataloader, criterion, optimizer, epoch, cfg, logger, writer):
             batch_size = targets.shape[0]
 
             # forward
-            logits = model(images, loc)
-            loss = criterion(logits, targets)
-            acc1, acc5 = accuracy(logits, targets, topk=(1,5))
+            logits_metrix, similarity_metrix = model(images, loc)
+            loss = criterion(logits_metrix, similarity_metrix, targets)
+            acc1, acc5 = accuracy(logits_metrix, targets, topk=(1,5))
 
             # update metric
             losses.update(loss.item(), batch_size)
@@ -268,17 +243,6 @@ def main_worker(rank, world_size, cfg):
         sampler=train_sampler,
         drop_last=True
     )
-    unlabeled_set = build_dataset(cfg.data.unlabedled)
-    unlabeled_collate = build_collate(cfg.data.collate)
-    unlabeled_loader = torch.utils.data.DataLoader(
-        unlabeled_set,
-        batch_size=cfg.bsz_gpu,
-        num_workers=cfg.num_workers,
-        collate_fn = unlabeled_collate,
-        shuffle=False,
-        pin_memory=True,
-        drop_last=False
-    )
     valid_set = build_dataset(cfg.data.vaild)
     valid_collate = locCollateFunction()
     valid_loader = torch.utils.data.DataLoader(
@@ -286,7 +250,6 @@ def main_worker(rank, world_size, cfg):
         batch_size=cfg.bsz_gpu,
         num_workers=cfg.num_workers,
         collate_fn = valid_collate,
-        shuffle=False,
         pin_memory=True,
         drop_last=True
     )
@@ -320,7 +283,7 @@ def main_worker(rank, world_size, cfg):
         adjust_learning_rate(cfg.lr_cfg, optimizer, epoch)
 
         # train; all processes
-        train(model, model_ema, train_loader, unlabeled_loader, criterion, optimizer, epoch, scaler, cfg, logger, writer)
+        train(model, model_ema, train_loader, criterion, optimizer, epoch, scaler, cfg, logger, writer)
         
         if model_ema:
             valid(model_ema, valid_loader, criterion, optimizer, epoch, cfg, logger, writer)

@@ -103,7 +103,7 @@ lr_cfg = dict(  # passed to adjust_learning_rate(cfg=lr_cfg)
 #log & save
 log_interval = 100
 save_interval = 20
-work_dir = './experiment/efficientV2S_semi'#'./experiment/efficientV2S_LOC'
+work_dir = './experiment/efficientV2S_semi'
 port = 10001
 resume = None # (路徑) 從中斷的地方開始 train
 load = './experiment/efficientV2S_Progressing3/base1_1/20221127_234539/epoch_100.pth' # (路徑) 載入訓練好的模型 test

@@ -117,17 +117,17 @@ def run_eval(model, test_loader, dataset, cfg):
 def run_inference(model, dataloader, dataset, cfg):
     pred_class = []
     idx_to_classes = {
-        0: 'asparagus', 1: 'bambooshoots', 2: 'betel', 3: 'broccoli', 4: 'cauliflower', 5: 'chinesecabbage',
-        6: 'chinesechives', 7: 'custardapple', 8: 'grape', 9: 'greenhouse', 10: 'greenonion', 11: 'kale',
-        12: 'lemon', 13: 'lettuce', 14: 'litchi', 15: 'longan', 16: 'loofah', 17: 'mango', 18: 'onion', 19: 'others',
-        20: 'papaya', 21: 'passionfruit', 22: 'pear', 23: 'pennisetum', 24: 'redbeans',25: 'roseapple', 26: 'sesbania',
-        27: 'soybeans', 28: 'sunhemp', 29: 'sweetpotato', 30: 'taro', 31: 'tea', 32: 'waterbamboo'}
-    
-    for idx, (images, _) in enumerate(dataloader):
-        images = images.float().cuda()
+        0: 'asparagus', 1: 'bambooshoots', 2: 'betel', 3: 'broccoli', 4: 'cauliflower', 5: 'chinesecabbage', 6: 'chinesechives',
+        7: 'custardapple', 8: 'grape', 9: 'greenhouse', 10: 'greenonion', 11: 'kale', 12: 'lemon', 13: 'lettuce', 14: 'litchi',
+        15: 'longan', 16: 'loofah', 17: 'mango', 18: 'onion', 19: 'papaya', 20: 'passionfruit', 21: 'pear', 22: 'pennisetum',
+        23: 'redbeans', 24: 'roseapple', 25: 'sesbania', 26: 'soybeans', 27: 'sunhemp', 28: 'sweetpotato', 29: 'taro', 30: 'tea',
+        31: 'waterbamboo', 32: 'others'}
 
+    for idx, (images, _, loc) in enumerate(dataloader):
+        images = images.float().cuda()
+        loc = loc.cuda()
         # forward
-        logits = model(images)
+        logits = model(images,loc)
         logits = F.softmax(logits, dim=-1)
         logits = torch.argmax(logits, dim=-1).cpu().tolist()
         
@@ -194,6 +194,7 @@ def main_worker(rank, world_size, cfg):
 
     print(f"==> Start testing ....")
     model.eval()
+
     # with torch.inference_mode:
     if cfg.output_file_name is not None:
         run_inference(model, test_loader, test_set, cfg)

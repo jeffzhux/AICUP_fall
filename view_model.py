@@ -120,7 +120,13 @@ test_loader = torch.utils.data.DataLoader(
     drop_last = False
 )
 
-
+a = {
+        'asparagus': 0, 'bambooshoots': 1, 'betel': 2, 'broccoli': 3, 'cauliflower': 4, 'chinesecabbage': 5, 'chinesechives': 6,
+        'custardapple': 7, 'grape': 8, 'greenhouse': 9, 'greenonion': 10, 'kale': 11, 'lemon': 12, 'lettuce': 13, 'litchi': 14,
+        'longan': 15, 'loofah': 16, 'mango': 17, 'onion': 18, 'papaya': 19, 'passionfruit': 20, 'pear': 21, 'pennisetum': 22,
+        'redbeans': 23, 'roseapple': 24, 'sesbania': 25, 'soybeans': 26, 'sunhemp': 27, 'sweetpotato': 28, 'taro': 29, 'tea': 30,
+        'waterbamboo': 31, 'others': 32}
+print({v: k for k, v in a.items()})
 
 # with open('./training/tag_locCoor.csv', mode = 'r') as inp:
 #     reader = csv.reader(inp)
@@ -133,17 +139,17 @@ test_loader = torch.utils.data.DataLoader(
 
 
 
-from utils.kmean import KMEANS
-import numpy as np
-import matplotlib.cm as cm
-import matplotlib.pyplot as plt
+# from utils.kmean import KMEANS
+# import numpy as np
+# import matplotlib.cm as cm
+# import matplotlib.pyplot as plt
 
-n_clusters = 5
-colors = cm.nipy_spectral(np.linspace(0, 1, n_clusters))
-matrix = torch.randn((1000,2))
+# n_clusters = 5
+# colors = cm.nipy_spectral(np.linspace(0, 1, n_clusters))
+# matrix = torch.randn((1000,2))
 
-kmean = KMEANS(n_clusters = n_clusters, verbose=False)
-kmean.fit(matrix)
-for i in range(n_clusters):
-    plt.scatter(matrix[kmean.labels == i][:,0], matrix[kmean.labels == i][:, 1], color=colors[i])
-plt.savefig('test.png')
+# kmean = KMEANS(n_clusters = n_clusters, verbose=False)
+# kmean.fit(matrix)
+# for i in range(n_clusters):
+#     plt.scatter(matrix[kmean.labels == i][:,0], matrix[kmean.labels == i][:, 1], color=colors[i])
+# plt.savefig('test.png')
