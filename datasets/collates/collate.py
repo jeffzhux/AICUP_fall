@@ -25,7 +25,7 @@ class ClipCollateFunction(nn.Module):
         
         img, lab, loc, text = map(list,zip(*batch))
         img = torch.stack(img)
-        lab = torch.stack(lab)
+        lab = torch.tensor(lab)
         loc = torch.tensor(loc).view(-1, 2)
         text = torch.tensor(text).view(-1, self.context_length)
         return img, lab, loc, text

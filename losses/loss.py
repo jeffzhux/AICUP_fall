@@ -16,12 +16,10 @@ class MixUpLoss(nn.Module):
         return lam * self.criterion(pred, y_a) + (1 - lam) * self.criterion(pred, y_b)
 
 class SimilarityLoss(nn.Module):
-    def __init__(self, alpha=0.001, lam = 5e-3, **args) -> None:
+    def __init__(self, lam = 5e-3, **args) -> None:
         super(SimilarityLoss, self).__init__()
         self.logit_criterion = nn.CrossEntropyLoss(**args)
-        self.text_criterion = nn.CrossEntropyLoss(**args)
         self.lam = lam
-        self.alpha = alpha
     def off_diagonal(self, x):
         # return a flattened view of the off-diagonal elements of a square matrix
         n, m = x.shape
@@ -29,14 +27,15 @@ class SimilarityLoss(nn.Module):
         return x.flatten()[:-1].view(n - 1, n + 1)[:, 1:].flatten()
 
     def forward(self, logits_metrix, similarity_metrix, label):
-        D = similarity_metrix.size(1)
+        B, D = similarity_metrix.size()
         
         logits_loss = self.logit_criterion(logits_metrix, label)
+        
         on_diag = torch.diagonal(similarity_metrix).add_(-1).pow_(2).sum()
         off_diag = self.off_diagonal(similarity_metrix).pow_(2).sum()
-        dim_loss = on_diag + self.lam * off_diag
-        
-        return logits_loss + self.alpha * dim_loss
+        sim_loss = (on_diag + self.lam * off_diag) / B
+
+        return logits_loss + sim_loss
 
 class KmeanClipLoss(nn.Module):
     def __init__(self, num_classes, num_extra_others, **args) -> None:

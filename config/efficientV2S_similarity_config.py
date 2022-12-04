@@ -11,10 +11,14 @@ data_root = './data/ID'
 num_workers = 8
 num_classes = 33
 data = dict(
-    collate = dict(
-        type = 'locCollate',
+    augmentation = dict(
         num_classes = num_classes,
-        mixup_alpha=0.1
+        mixup_alpha=0.1,
+        cutmix_alpha = 1.0
+    ),
+    collate = dict(
+        type = 'ClipCollateFunction',
+        context_length = 2
     ),
     sampler = dict(
         type='RASampler',
@@ -23,7 +27,7 @@ data = dict(
     ),
     train = dict(
         root=f'{data_root}/train',
-        type = 'loc_ImageFolder',
+        type = 'Clip_ImageFolder',
         loc_file_path = './data/ID/tag_locCoor.csv',
         transform = dict(
             type='baseOnTrivialAugment',
@@ -33,7 +37,7 @@ data = dict(
     ),
     vaild = dict(
         root=f'{data_root}/valid',
-        type = 'loc_ImageFolder',
+        type = 'Clip_ImageFolder',
         loc_file_path = './data/ID/tag_locCoor.csv',
         transform = dict(
             type='base',
@@ -45,18 +49,16 @@ data = dict(
 # model
 model_ema = dict(
     status = True,
-    steps=32,
+    steps=2,
     decay=0.99998
 )
 
 model = dict(
-    type="SimilarityNet",
+    type="ClipNet",
     backbone = dict(
         type = 'efficientnet_v2_s',
         weights = 'EfficientNet_V2_S_Weights.IMAGENET1K_V1',
-        dropout_rate = 0.1,
-        num_classes = num_classes,
-        batch_size = batch_size
+        num_classes = num_classes
     )
     
 )
@@ -64,9 +66,7 @@ model = dict(
 # loss
 loss = dict(
     type = 'SimilarityLoss',
-    label_smoothing = 0.1,
-    alpha=0.001,
-    lam = 5e-3
+    label_smoothing = 0.1
 )
 
 

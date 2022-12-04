@@ -446,11 +446,11 @@ class Clip_ImageFolder(ImageFolder):
     def __init__(
         self,
         root: str,
-        training: bool = True,
+        loc_file_path: str,
         transform: Optional[Callable] = None,
         target_transform: Optional[Callable] = None
     ):
-        self.training = training
+        self.loc_file_path = loc_file_path
         super().__init__(
             root,
             transform=transform,
@@ -499,7 +499,7 @@ class Clip_ImageFolder(ImageFolder):
                 return self.has_file_allowed_extension(x, extensions)  # type: ignore[arg-type]
 
         filename_to_loc = {}
-        with open('./data/ID/tag_locCoor.csv', mode = 'r') as inp:
+        with open(self.loc_file_path, mode = 'r') as inp:
             reader = csv.reader(inp)
             for i, v in enumerate(reader):
                 if i > 0:
@@ -522,11 +522,7 @@ class Clip_ImageFolder(ImageFolder):
                 for fname in sorted(fnames):
                     path = os.path.join(root, fname)
                     if is_valid_file(path):
-                        if self.training:
-                            text = [area_vocab['startoftext']] + filename_to_loc[fname][2] + [area_vocab[root.split('\\')[-1]], area_vocab['endoftext']]
-                        else:
-                            text = [[area_vocab['startoftext']] + filename_to_loc[fname][2] + [area_vocab[k], area_vocab['endoftext']] for k, v in class_to_idx.items()]
-                        item = path, class_index, filename_to_loc[fname][:2], text
+                        item = path, class_index, filename_to_loc[fname][:2], filename_to_loc[fname][2]
                         instances.append(item)
 
                         if target_class not in available_classes:
@@ -553,8 +549,8 @@ class Clip_ImageFolder(ImageFolder):
         if self.transform is not None:
             sample = self.transform(sample)
 
-        target = torch.tensor(target)
-        target = F.one_hot(target, self.num_of_classes)
-        target = target.type(torch.float32)
+        # target = torch.tensor(target)
+        # target = F.one_hot(target, self.num_of_classes)
+        # target = target.type(torch.float32)
 
         return sample, target, loc, text

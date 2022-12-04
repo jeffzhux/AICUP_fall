@@ -41,8 +41,6 @@ class LocClipNet(nn.Module):
 
         backbone_name = backbone_args.pop('type')
         num_classes = backbone_args.pop('num_classes')
-        batch_size = backbone_args.pop('batch_size')
-        dropout_rate =  backbone_args.pop('dropout_rate') if backbone_args.get('dropout_rate') != None else None
         self.backbone = getattr(torchvision.models, backbone_name)(**backbone_args)
         
         locDim = 128
