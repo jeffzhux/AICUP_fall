@@ -103,8 +103,8 @@ def train(model, model_ema, dataloader, augmentation, criterion, optimizer, epoc
         # compute output
         
         with autocast(enabled=scaler is not None):
-            logits_metrix, similarity_metrix = model(imgs, loc, text, lam, index)
-            loss = criterion(logits_metrix, similarity_metrix, labels)
+            logits_metrix = model(imgs, loc, text, lam, index)
+            loss = criterion(logits_metrix, labels)
 
         losses.update(loss.item(), batch_size)
 
@@ -174,8 +174,8 @@ def valid(model, dataloader, criterion, optimizer, epoch, cfg, logger, writer):
             batch_size = targets.shape[0]
 
             # forward
-            logits_metrix, similarity_metrix = model(images, loc, text)
-            loss = criterion(logits_metrix, similarity_metrix, targets)
+            logits_metrix = model(images, loc, text)
+            loss = criterion(logits_metrix, targets)
             acc1, acc5 = accuracy(logits_metrix, targets, topk=(1,5))
 
             # update metric

@@ -51,7 +51,7 @@ class ClipNet(nn.Module):
 
         # text
         self.locLayer = nn.Linear(2, locDim)
-        self.token_embedding = nn.Embedding(len(area_vocab), self.output_dim // self.context_length)
+        self.token_embedding = nn.Embedding(len(area_vocab), locDim)
         self.label_embedding = nn.Embedding(len(vocab), self.output_dim)
         self.text_projection = nn.Parameter(torch.empty(self.output_dim, self.output_dim))
 
@@ -59,18 +59,18 @@ class ClipNet(nn.Module):
         self.logit_scale = nn.Parameter(torch.ones([]) * np.log(1 / 0.07))
 
         self.image_encoder = getattr(torchvision.models, backbone_name)(**backbone_args)
-        input_dim = self.image_encoder.classifier[-1].in_features + locDim
+        input_dim = self.image_encoder.classifier[-1].in_features + locDim * (self.context_length + 1)
         self.image_encoder.classifier = ProjectionHead([
             (input_dim , hidden_dim, nn.BatchNorm1d(hidden_dim), nn.ReLU(inplace=True)),
             (hidden_dim , hidden_dim, nn.BatchNorm1d(hidden_dim), nn.ReLU(inplace=True)),
             (hidden_dim , self.output_dim, nn.BatchNorm1d(hidden_dim), None)
         ])   
 
-    def encode_image(self, x, loc):
+    def encode_image(self, x, loc, text):
         x = self.image_encoder.features(x)
         x = self.image_encoder.avgpool(x)
         x = torch.flatten(x, 1)
-        x = torch.cat((x, loc), dim=-1)
+        x = torch.cat((x, loc, text), dim=-1)
         x = self.image_encoder.classifier(x)
         return x
 
@@ -84,6 +84,7 @@ class ClipNet(nn.Module):
         text = self.token_embedding(text)
         text = torch.flatten(text, 1)
         locs = torch.empty((0, loc.size(1)), device=loc.device)
+
         texts = torch.empty((0, text.size(1)), device=text.device)
         
         if lam is not None and index is not None:
@@ -104,19 +105,14 @@ class ClipNet(nn.Module):
         
         loc, text = self.init_parameter(loc, text, lam, index)
 
-        image_features = self.encode_image(img, loc)
-        text_features = self.encode_text(text)
+        image_features = self.encode_image(img, loc, text)
         label_features = self.label_embedding(self.label_token)
 
         # normalized features
         image_features = image_features / image_features.norm(dim=1, keepdim=True)
-        text_features = text_features / text_features.norm(dim=1, keepdim=True)
         label_features = label_features / label_features.norm(dim=1, keepdim=True)
         # cosine similarity as logits
         logit_scale = self.logit_scale.exp()
         logits_matrix = logit_scale * image_features @ label_features.t()
-        
-        # similarity matrix
-        similarity_matrix = logit_scale * image_features @ text_features.t()
 
-        return logits_matrix, similarity_matrix
+        return logits_matrix

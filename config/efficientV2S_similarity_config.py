@@ -65,7 +65,7 @@ model = dict(
 
 # loss
 loss = dict(
-    type = 'SimilarityLoss',
+    type = 'CrossEntropyLoss',
     label_smoothing = 0.1
 )
 
