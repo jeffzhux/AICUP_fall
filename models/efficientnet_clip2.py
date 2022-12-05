@@ -53,7 +53,6 @@ class ClipNet(nn.Module):
         self.locLayer = nn.Linear(2, locDim)
         self.token_embedding = nn.Embedding(len(area_vocab), locDim)
         self.label_embedding = nn.Embedding(len(vocab), self.output_dim)
-        self.text_projection = nn.Parameter(torch.empty(self.output_dim, self.output_dim))
 
         # image
         self.logit_scale = nn.Parameter(torch.ones([]) * np.log(1 / 0.07))
