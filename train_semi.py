@@ -134,11 +134,11 @@ def train(model, model_ema, labeled_dataloader, unlabeled_dataloader, augmentati
         all_img, all_labels, lam, index = augmentation(all_img, all_labels)
         
         # compute output
+        batch_size = imgs.size(0)
         with autocast(enabled=scaler is not None):
             logits= model(all_img, all_loc, all_text, lam, index)
             loss = criterion(logits[:batch_size], all_labels[:batch_size], all_labels[batch_size:],labels_u[batch_size:])
-
-        batch_size = imgs.size(0)
+            
         losses.update(loss.item(), batch_size)
 
         # accurate
