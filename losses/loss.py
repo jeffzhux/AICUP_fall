@@ -8,9 +8,9 @@ from utils.config import ConfigDict
 
 
 class MixmatchLoss(nn.Module):
-    def __init__(self) -> None:
+    def __init__(self, **args) -> None:
         super(MixmatchLoss, self).__init__()
-        self.criterion = nn.CrossEntropyLoss()
+        self.criterion = nn.CrossEntropyLoss(**args)
         
     def forward(self, pred_l, labels_l, pred_u, labels_u):
         

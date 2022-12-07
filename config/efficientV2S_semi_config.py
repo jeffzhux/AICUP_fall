@@ -79,7 +79,7 @@ model = dict(
 
 # loss
 loss = dict(
-    type = 'CrossEntropyLoss',
+    type = 'MixmatchLoss',
     label_smoothing = 0.1
 )
 
