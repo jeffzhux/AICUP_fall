@@ -214,7 +214,6 @@ class loc_Dataset(Dataset):
         return len(self.sample)
 
 
-
 class loc_ImageFolder(ImageFolder):
     def __init__(
         self,
@@ -316,20 +315,7 @@ class loc_ImageFolder(ImageFolder):
 
         return sample, target, loc
 
-class locwithPath_ImageFolder(loc_ImageFolder):
-    def __init__(self, **args):
-        super().__init__(**args)
-    def __getitem__(self, index: int) -> Tuple[Any, Any]:
-        path, target, loc = self.samples[index]
-        sample = self.loader(path)
-        if self.transform is not None:
-            sample = self.transform(sample)
 
-        target = torch.tensor(target)
-        target = F.one_hot(target, self.num_of_classes)
-        target = target.type(torch.float32)
-
-        return sample, target, loc, path
 
 class Kmean_ImageFolder(ImageFolder):
     def __init__(
@@ -554,3 +540,14 @@ class Clip_ImageFolder(ImageFolder):
         # target = target.type(torch.float32)
 
         return sample, target, loc, text
+
+class ClipUnlabel_ImageFolder(Clip_ImageFolder):
+    def __init__(self, **args):
+        super().__init__(**args)
+    def __getitem__(self, index: int) -> Tuple[Any, Any]:
+        path, target, loc, text = self.samples[index]
+        sample = self.loader(path)
+        if self.transform is not None:
+            sample1, sample2 = self.transform(sample), self.transform(sample)
+
+        return sample1, sample2, loc, text

@@ -10,7 +10,7 @@ import torch.multiprocessing as mp
 import torch.distributed as dist
 from torch.cuda.amp import autocast, GradScaler
 import torch
-from torch.utils.data import ConcatDataset
+import torch.nn.functional as F
 
 from torch.utils.tensorboard import SummaryWriter
 from utils.util import AverageMeter, TrackMeter, accuracy, adjust_learning_rate, format_time, set_seed, set_weight_decay
@@ -21,8 +21,7 @@ from models.build import build_model, build_ema_model
 from losses.build import build_loss
 from datasets.transforms import build_transform
 from optimizers.build import build_optimizer
-from datasets.collates import locCollateFunction, locPathCollateFunction
-from datasets.dataset import loc_Dataset
+from datasets.transforms.augmentations import RandomMixupCutMix
 
 def get_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
@@ -79,7 +78,7 @@ def load_weights(ckpt_path, model, model_ema, optimizer, scaler, resume=True) ->
 
     return start_epoch
 
-def train(model, model_ema, labeled_dataloader, unlabeled_dataloader, criterion, optimizer, epoch, scaler, cfg, logger=None, writer=None):
+def train(model, model_ema, labeled_dataloader, unlabeled_dataloader, augmentation, criterion, optimizer, epoch, scaler, cfg, logger=None, writer=None):
     model.train() # 開啟batch normalization 和 dropout
     
     batch_time = AverageMeter()
@@ -94,44 +93,56 @@ def train(model, model_ema, labeled_dataloader, unlabeled_dataloader, criterion,
     epoch_end = time.time()
     for idx in range(num_iter):
         try:
-            imgs, labels, loc = labeled_train_iter.next()
+            imgs, labels, loc, text = labeled_train_iter.next()
         except:
             labeled_train_iter = iter(labeled_dataloader)
-            imgs, labels, loc = labeled_train_iter.next()
+            imgs, labels, loc, text = labeled_train_iter.next()
 
-        imgs = imgs.cuda(non_blocking=True)
-        labels = labels.cuda(non_blocking=True)
-        loc = loc.cuda(non_blocking=True)
-        
         try:
-            (imgs_u, imgs_u2), loc_u = unlabeled_train_iter.next()
+            imgs_u, imgs_u2, loc_u, text_u = unlabeled_train_iter.next()
         except:
             unlabeled_train_iter = iter(unlabeled_dataloader)
-            (imgs_u, imgs_u2), loc_u = unlabeled_train_iter.next()
+            imgs_u, imgs_u2, loc_u, text_u = unlabeled_train_iter.next()
 
         # measure data loading time
         data_time.update(time.time() - iter_end)
 
+        imgs = imgs.cuda(non_blocking=True)
+        labels = labels.cuda(non_blocking=True)
+        loc = loc.cuda(non_blocking=True)
+        text = text.cuda(non_blocking=True)
+
+        imgs_u = imgs.cuda(non_blocking=True)
+        imgs_u2 = imgs.cuda(non_blocking=True)
+        loc_u = loc.cuda(non_blocking=True)
+        text_u = text.cuda(non_blocking=True)
+        
         with torch.no_grad():
-            outputs_u = model(imgs_u, loc_u)
-            outputs_u2 = model(imgs_u2, loc_u)
+            outputs_u = model(imgs_u, loc_u, text_u)
+            outputs_u2 = model(imgs_u2, loc_u, text_u)
             p = (torch.softmax(outputs_u, dim=1) + torch.softmax(outputs_u2, dim=1)) / 2
-            pt = p**(1 / 0.5) # T = 0.5
+            pt = p**(1 / 0.5) # T = 0.5 sharpens
             labels_u = pt / pt.sum(dim=1, keepdim=True)
             labels_u = labels_u.detach()
-
         
-
+        # mixup label & unlabel
+        labels = labels = F.one_hot(labels, labels_u.size(-1))
+        all_img = torch.cat([imgs, imgs_u, imgs_u2], dim=0)
+        all_labels = torch.cat([labels, labels_u, labels_u], dim=0)
+        all_loc = torch.cat([loc, loc_u, loc_u], dim=0)
+        all_text = torch.cat([text, text_u, text_u], dim=0)
+        all_img, all_labels, lam, index = augmentation(all_img, all_labels)
+        
         # compute output
         with autocast(enabled=scaler is not None):
-            logits= model(imgs, loc)
-            loss = criterion(logits, labels)
+            logits= model(all_img, all_loc, all_text, lam, index)
+            loss = criterion(logits, all_labels)
 
         batch_size = imgs.size(0)
         losses.update(loss.item(), batch_size)
 
         # accurate
-        acc1, acc5 = accuracy(logits, labels, topk=(1,5))
+        acc1, acc5 = accuracy(logits, all_labels, topk=(1,5))
         top1.update(acc1.item(), batch_size)
 
         # compute gradient and do SGD step
@@ -164,7 +175,7 @@ def train(model, model_ema, labeled_dataloader, unlabeled_dataloader, criterion,
                         f'loss(loss avg): {loss:.3f}({losses.avg:.3f}),  '
                         f'train_Acc@1: {top1.avg:.3f}  '
             )
-        
+        break
     if logger is not None: 
         now = time.time()
         epoch_time = format_time(now - epoch_end)
@@ -188,15 +199,16 @@ def valid(model, dataloader, criterion, optimizer, epoch, cfg, logger, writer):
     end = time.time()
 
     with torch.no_grad():
-        for idx, (images, targets, loc) in enumerate(dataloader):
+        for idx, (images, targets, loc, text) in enumerate(dataloader):
             images = images.cuda(non_blocking=True)
             targets = targets.cuda(non_blocking=True)
-
             loc = loc.cuda(non_blocking=True)
+            text = text.cuda(non_blocking=True)
+
             batch_size = targets.shape[0]
 
             # forward
-            logits = model(images, loc)
+            logits = model(images, loc, text)
             loss = criterion(logits, targets)
             acc1, acc5 = accuracy(logits, targets, topk=(1,5))
 
@@ -268,19 +280,19 @@ def main_worker(rank, world_size, cfg):
         sampler=train_sampler,
         drop_last=True
     )
-    unlabeled_set = build_dataset(cfg.data.unlabedled)
-    unlabeled_collate = build_collate(cfg.data.collate)
+    unlabeled_set = build_dataset(cfg.data.unlabel)
+    unlabeled_collate = build_collate(cfg.data.unlabel_collate)
     unlabeled_loader = torch.utils.data.DataLoader(
         unlabeled_set,
         batch_size=cfg.bsz_gpu,
         num_workers=cfg.num_workers,
         collate_fn = unlabeled_collate,
-        shuffle=False,
+        shuffle=True,
         pin_memory=True,
-        drop_last=False
+        drop_last=True
     )
     valid_set = build_dataset(cfg.data.vaild)
-    valid_collate = locCollateFunction()
+    valid_collate = build_collate(cfg.data.collate)
     valid_loader = torch.utils.data.DataLoader(
         valid_set,
         batch_size=cfg.bsz_gpu,
@@ -290,6 +302,9 @@ def main_worker(rank, world_size, cfg):
         pin_memory=True,
         drop_last=True
     )
+
+    #Augmentation
+    augmentation = RandomMixupCutMix(**cfg.data.augmentation)
 
     # build model
     model = build_model(cfg.model)
@@ -320,7 +335,7 @@ def main_worker(rank, world_size, cfg):
         adjust_learning_rate(cfg.lr_cfg, optimizer, epoch)
 
         # train; all processes
-        train(model, model_ema, train_loader, unlabeled_loader, criterion, optimizer, epoch, scaler, cfg, logger, writer)
+        train(model, model_ema, train_loader, unlabeled_loader, augmentation, criterion, optimizer, epoch, scaler, cfg, logger, writer)
         
         if model_ema:
             valid(model_ema, valid_loader, criterion, optimizer, epoch, cfg, logger, writer)

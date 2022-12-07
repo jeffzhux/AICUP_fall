@@ -2,8 +2,8 @@ import os
 import random
 import shutil
 random.seed(2022)
-train_path = './data/OOD/train'
-valid_path = './data/OOD/valid'
+train_path = './data/ID_720/train'
+valid_path = './data/ID_720/valid'
 train, valid = 0.9, 0.1
 
 for dir in os.listdir(train_path):

@@ -28,13 +28,14 @@ class Lighting(object):
         return img.add(rgb.view(3, 1, 1).expand_as(img))
 
 class RandomMixupCutMix(nn.Module):
-    def __init__(self, num_classes, mixup_alpha=0.2, cutmix_alpha=1.0):
+    def __init__(self, num_classes, mixup_alpha=0.2, cutmix_alpha=1.0, is_mixmatch=False):
         super(RandomMixupCutMix, self).__init__()
         self.num_classes = num_classes
-        self.mixup = Mixup(num_classes, alpha=mixup_alpha)
-        self.cutmix = CutMix(num_classes, alpha=cutmix_alpha)
+        self.mixup = Mixup(num_classes, alpha=mixup_alpha, is_mixmatch = is_mixmatch)
+        self.cutmix = CutMix(num_classes, alpha=cutmix_alpha, is_mixmatch = is_mixmatch)
     def forward(self, images, labels):
-        labels = F.one_hot(labels, self.num_classes)
+        if len(labels.size()) == 1:
+            labels = F.one_hot(labels, self.num_classes)
 
         bs = images.size(0) // 2
         img1, lab1, mixup_lam, mixup_index = self.mixup(images[:bs], labels[:bs])
@@ -48,16 +49,21 @@ class Mixup(nn.Module):
         Reference
         https://arxiv.org/pdf/1710.09412.pdf
     '''
-    def __init__(self, num_classes, alpha=1.0):
+    def __init__(self, num_classes, alpha=1.0, is_mixmatch=False):
         super(Mixup, self).__init__()
         self.alpha = alpha
         self.num_classes = num_classes
+        self.is_mixmatch = is_mixmatch
 
     def forward(self, images, labels):
         if self.alpha > 0:
             lam = np.random.beta(self.alpha, self.alpha)
         else:
             lam = 1
+
+        if self.is_mixmatch:
+            lam = max(lam, 1. - lam)
+
         bs = images.size(0)
         index = torch.randperm(bs)
 
@@ -70,10 +76,12 @@ class CutMix(nn.Module):
         Returns mixed inputs, pairs of targets, and lambda
         Reference https://arxiv.org/pdf/1905.04899v2.pdf
     '''
-    def __init__(self, num_classes, alpha=1.0):
+    def __init__(self, num_classes, alpha=1.0, is_mixmatch=False):
         super(CutMix, self).__init__()
         self.alpha = alpha
         self.num_classes = num_classes
+        self.is_mixmatch = is_mixmatch
+
     def forward(self, images, labels, lam=None, index=None):
 
         bs = images.size(0) # batch_size
@@ -81,6 +89,10 @@ class CutMix(nn.Module):
             lam = np.random.beta(self.alpha, self.alpha)
         else:
             lam = 1
+
+        if self.is_mixmatch:
+            lam = max(lam, 1. - lam)
+        
         # create bbox
         W, H = images.size()[-2], images.size()[-1]
         

@@ -20,10 +20,10 @@ data = dict(
         type = 'locCollateFunction',
     ),
     test = dict(
-        # root=f'{data_root}/ID/valid',
-        # loc_file_path = './data/ID/tag_locCoor.csv',
-        root=f'{data_root}/Test',
-        loc_file_path = './data/Test/tag_loccoor_public.csv',
+        root=f'{data_root}/ID/valid',
+        loc_file_path = './data/ID/tag_locCoor.csv',
+        # root=f'{data_root}/Test',
+        # loc_file_path = './data/Test/tag_loccoor_public.csv',
         type = 'loc_ImageFolder',
         transform = dict(
             type='base',
@@ -54,7 +54,7 @@ model = dict(
 
 
 #log & save
-output_file_name = 'submission'
+output_file_name = None#'submission'
 work_dir = './test_experiment/efficient_loc'
 load = './experiment/efficientV2S_Progressing3/base1_3/20221201_102338/epoch_40.pth'
 # load = './experiment/efficientV2S_Progressing3/base1_2/20221128_102223/epoch_100.pth'

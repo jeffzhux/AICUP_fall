@@ -7,13 +7,14 @@ import numpy as np
 from utils.config import ConfigDict
 
 
-class MixUpLoss(nn.Module):
+class MixmatchLoss(nn.Module):
     def __init__(self) -> None:
-        super(MixUpLoss, self).__init__()
+        super(MixmatchLoss, self).__init__()
         self.criterion = nn.CrossEntropyLoss()
-    def forward(self, pred, labels):
-        (y_a, y_b, lam) = labels
-        return lam * self.criterion(pred, y_a) + (1 - lam) * self.criterion(pred, y_b)
+        
+    def forward(self, pred_l, labels_l, pred_u, labels_u):
+        
+        return self.criterion(pred_l, labels_l) + torch.mean((pred_u - labels_u)**2)
 
 class SimilarityLoss(nn.Module):
     def __init__(self, lam = 5e-3, **args) -> None:

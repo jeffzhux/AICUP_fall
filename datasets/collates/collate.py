@@ -51,18 +51,19 @@ class ClipFunction(nn.Module):
         return torch.concat((img1, img2), dim=0), torch.concat((lab1, lab2), dim=0), loc, text
 
 
-class locPathCollateFunction(nn.Module):
-    def __init__(self):
-        super(locPathCollateFunction, self).__init__()
+class ClipUnlabelCollateFunction(nn.Module):
+    def __init__(self, context_length):
+        super(ClipUnlabelCollateFunction, self).__init__()
+        self.context_length = context_length
 
     def forward(self, batch: List[tuple]):
-        
-        img, lab, loc, path = map(list,zip(*batch))
-        img = torch.stack(img)
-        lab = torch.stack(lab)
-        loc = torch.tensor(loc)
+        img1, img2, loc, text = map(list,zip(*batch))
+        img1 = torch.stack(img1)
+        img2 = torch.stack(img2)
+        text = torch.tensor(text).view(-1, self.context_length)
+        loc = torch.tensor(loc).view(-1, 2)
 
-        return img, lab, loc, path
+        return img1, img2, loc, text
 
 class locCollateFunction(nn.Module):
     def __init__(self):

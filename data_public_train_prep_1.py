@@ -5,10 +5,10 @@ import glob
 from PIL import Image
 import pandas as pd
 import math
-data_path = './data_public_train/*'
+data_path = './training/data_public_train/*'
 center_file = './training/tag_locCoor.csv'
-TARGET_W = 512 # 目標寬度 +1 
-TARGET_H = 512 # 目標長度 +1
+TARGET_W = 720 # 目標寬度 +1 
+TARGET_H = 720 # 目標長度 +1
 
 df = pd.read_csv(center_file, encoding='ANSI')
 
@@ -16,7 +16,7 @@ for file_path in glob.glob(data_path):
 
     zippedImgs = zipfile.ZipFile(file_path)
 
-    folder_path = f'./data/ID/train/{zippedImgs.namelist()[0]}'
+    folder_path = f'./data/ID_720/train/{zippedImgs.namelist()[0]}'
     if not os.path.exists(folder_path):
         os.makedirs(folder_path)
 

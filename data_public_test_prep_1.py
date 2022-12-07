@@ -5,12 +5,12 @@ import glob
 from PIL import Image
 import pandas as pd
 import math
-data_path = './data_public_test/*'
-target_data_path = './data/test'
+data_path = './training/data_public_test/*'
+target_data_path = './data/test_720'
 center_file = './training/tag_loccoor_public_utf8.csv'
 
-TARGET_W = 512 # 目標寬度 +1
-TARGET_H = 512 # 目標長度 +1
+TARGET_W = 720 # 目標寬度 +1
+TARGET_H = 720 # 目標長度 +1
 
 df = pd.read_csv(center_file, encoding='utf8')
 
