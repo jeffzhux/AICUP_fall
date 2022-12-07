@@ -153,3 +153,15 @@ print({v: k for k, v in a.items()})
 # for i in range(n_clusters):
 #     plt.scatter(matrix[kmean.labels == i][:,0], matrix[kmean.labels == i][:, 1], color=colors[i])
 # plt.savefig('test.png')
+import numpy as np
+
+def linear_rampup(current, rampup_length=100):
+    if rampup_length == 0:
+        return 1.0
+    else:
+        current = np.clip(current / rampup_length, 0.0, 1.0)
+        return float(current)
+
+a = linear_rampup(10)
+for i in range(50):
+    print(linear_rampup(i))
