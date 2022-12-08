@@ -81,7 +81,8 @@ model = dict(
 loss = dict(
     type = 'MixmatchLoss',
     label_smoothing = 0.1,
-    rampup_length = epochs
+    rampup_length = epochs,
+    lam = 75
 )
 
 

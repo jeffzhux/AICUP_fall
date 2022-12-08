@@ -78,6 +78,25 @@ def load_weights(ckpt_path, model, model_ema, optimizer, scaler, resume=True) ->
 
     return start_epoch
 
+def interleave_offsets(batch, nu):
+    groups = [batch // (nu + 1)] * (nu + 1)
+    for x in range(batch - sum(groups)):
+        groups[-x - 1] += 1
+    offsets = [0]
+    for g in groups:
+        offsets.append(offsets[-1] + g)
+    assert offsets[-1] == batch
+    return offsets
+
+
+def interleave(xy, batch):
+    nu = len(xy) - 1
+    offsets = interleave_offsets(batch, nu)
+    xy = [[v[offsets[p]:offsets[p + 1]] for p in range(nu + 1)] for v in xy]
+    for i in range(1, nu + 1):
+        xy[0][i], xy[i][i] = xy[i][i], xy[0][i]
+    return [torch.cat(v, dim=0) for v in xy]
+
 def train(model, model_ema, labeled_dataloader, unlabeled_dataloader, augmentation, criterion, optimizer, epoch, scaler, cfg, logger=None, writer=None):
     model.train() # 開啟batch normalization 和 dropout
     
@@ -135,14 +154,25 @@ def train(model, model_ema, labeled_dataloader, unlabeled_dataloader, augmentati
         
         # compute output
         batch_size = imgs.size(0)
+        all_img = list(torch.split(all_img, batch_size))
+        all_img = interleave(all_img, batch_size)
         with autocast(enabled=scaler is not None):
-            logits= model(all_img, all_loc, all_text, lam, index)
-            loss = criterion(logits[:batch_size], all_labels[:batch_size], all_labels[batch_size:],all_labels[batch_size:])
-
-        losses.update(loss.item(), batch_size)
+            # logits = [model(all_img[0], loc, text)]
+            # for input_img in all_img[1:]:
+            #     logits.append(model(input_img, loc_u, text_u))
+            logits = model(torch.cat(all_img, dim=0), all_loc, all_text)
+            logits = list(torch.split(logits, batch_size))
+            logits = interleave(logits, batch_size)
+            logits_x = logits[0]
+            logits_u = torch.cat(logits[1:], dim=0)
+            loss = criterion(logits_x, all_labels[:batch_size], logits_u, all_labels[batch_size:], epoch)
+        # with autocast(enabled=scaler is not None):
+        #     logits = model(all_img, all_loc, all_text)
+        #     loss = criterion(logits[:batch_size], all_labels[:batch_size], logits[batch_size:], all_labels[batch_size:], epoch)
+        # losses.update(loss.item(), batch_size)
 
         # accurate
-        acc1, acc5 = accuracy(logits, all_labels, topk=(1,5))
+        acc1, acc5 = accuracy(logits_x, all_labels[:batch_size], topk=(1,5))
         top1.update(acc1.item(), batch_size)
 
         # compute gradient and do SGD step
@@ -175,7 +205,7 @@ def train(model, model_ema, labeled_dataloader, unlabeled_dataloader, augmentati
                         f'loss(loss avg): {loss:.3f}({losses.avg:.3f}),  '
                         f'train_Acc@1: {top1.avg:.3f}  '
             )
-        
+        break
     if logger is not None: 
         now = time.time()
         epoch_time = format_time(now - epoch_end)

@@ -8,11 +8,11 @@ from utils.config import ConfigDict
 
 
 class MixmatchLoss(nn.Module):
-    def __init__(self, rampup_length, **args) -> None:
+    def __init__(self, lam, rampup_length, **args) -> None:
         super(MixmatchLoss, self).__init__()
         self.criterion = nn.CrossEntropyLoss(**args)
         self.rampup_length = rampup_length
-
+        self.lam = lam
     def linear_rampup(self, current):
         if self.rampup_length == 0:
             return 1.0
@@ -21,7 +21,7 @@ class MixmatchLoss(nn.Module):
             return float(current)
 
     def forward(self, pred_l, labels_l, pred_u, labels_u, epoch):
-        lam = self.linear_rampup(epoch)
+        lam =  self.lam * self.linear_rampup(epoch)
         return self.criterion(pred_l, labels_l) + lam * torch.mean((pred_u - labels_u)**2)
 
 class SimilarityLoss(nn.Module):
