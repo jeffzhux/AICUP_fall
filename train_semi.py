@@ -172,7 +172,7 @@ def train(model, model_ema, labeled_dataloader, unlabeled_dataloader, augmentati
         # losses.update(loss.item(), batch_size)
 
         # accurate
-        acc1, acc5 = accuracy(logits_x, all_labels[:batch_size], topk=(1,5))
+        acc1, acc5 = accuracy(torch.cat(logits, dim=0), all_labels, topk=(1,5))
         top1.update(acc1.item(), batch_size)
 
         # compute gradient and do SGD step
@@ -205,7 +205,7 @@ def train(model, model_ema, labeled_dataloader, unlabeled_dataloader, augmentati
                         f'loss(loss avg): {loss:.3f}({losses.avg:.3f}),  '
                         f'train_Acc@1: {top1.avg:.3f}  '
             )
-        break
+        
     if logger is not None: 
         now = time.time()
         epoch_time = format_time(now - epoch_end)
