@@ -3,7 +3,7 @@ seed = 2022
 
 # test
 batch_size = 32
-draw = True
+draw = False
 
 #data
 data_root = './data'
@@ -21,14 +21,14 @@ data = dict(
         context_length = 2
     ),
     test = dict(
-        root=f'{data_root}/ID_720/valid',
-        loc_file_path = './data/ID/tag_locCoor.csv',
-        # root=f'{data_root}/Test_720',
-        # loc_file_path = './data/Test_720/tag_loccoor_public.csv',
+        # root=f'{data_root}/ID_720/valid',
+        # loc_file_path = './data/ID/tag_locCoor.csv',
+        root=f'{data_root}/Test_720',
+        loc_file_path = './data/Test_720/tag_loccoor_public.csv',
         type = 'Clip_ImageFolder',
         transform = dict(
             type='base',
-            size = (288, 288)
+            size = (224, 224)
         ),
     ),
     idx_to_classes = {
@@ -59,9 +59,11 @@ model = dict(
 
 
 #log & save
-output_file_name = None#'submission'
+output_file_name = 'submission'
 work_dir = './test_experiment/efficient_sim'
 # load = './experiment/efficientV2S_Progressing4/base1_1/20221205_233405/epoch_100.pth'
-load = './experiment/efficientV2S_Progressing4/base1_2/20221206_092628/epoch_40.pth'
+# load = './experiment/efficientV2S_Progressing4/base1_2/20221206_092628/epoch_40.pth'
+load = './experiment/efficientV2S_semi/20221209_091753/epoch_20.pth'
+
 port = 10001
 

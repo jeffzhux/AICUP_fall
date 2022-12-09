@@ -88,18 +88,18 @@ def iterate_data(model, model_ema, dataloader, cfg):
 @torch.no_grad()
 def run_eval(model, model_ema, test_loader, dataset, cfg):
     
-    # pred_class, target, img_features = iterate_data(model, model_ema, test_loader, cfg)
+    pred_class, target, img_features = iterate_data(model, model_ema, test_loader, cfg)
     # torch.save(pred_class,'./pred_class.pt')
     # torch.save(target,'./target.pt')
     # torch.save(img_features,'./features.pt')
     
     idx_to_classes = cfg.data.idx_to_classes
-    img_features = None
-    pred_class = torch.load('./pred_class.pt')
-    target = torch.load('./target.pt')
-    img_features = torch.load('./features.pt')
-    soft_class = F.softmax(pred_class, dim=-1).cpu()
-    open_set_pred = torch.sum(-soft_class * torch.log(soft_class + 1e-5), dim=-1)
+    # img_features = None
+    # pred_class = torch.load('./pred_class.pt')
+    # target = torch.load('./target.pt')
+    # img_features = torch.load('./features.pt')
+    # soft_class = F.softmax(pred_class, dim=-1).cpu()
+    # open_set_pred = torch.sum(-soft_class * torch.log(soft_class + 1e-5), dim=-1)
     # max_index, max_value = torch.max(open_set_pred, dim=-1)
     
     # pred_class[open_set_pred.gt(2.5),32] = 10

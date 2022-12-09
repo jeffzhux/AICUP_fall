@@ -38,7 +38,7 @@ class NoiseStudentCollateFunction(nn.Module):
         self.model.eval()
         with torch.no_grad():
             pseudolabel = self.model(img, loc, text)
-            pseudolabel = pseudolabel**(1 / self.T)
+            pseudolabel = torch.softmax(pseudolabel, dim=1)**(1 / self.T)
         return img, pseudolabel, loc, text
 
 class ClipCollateFunction(nn.Module):
