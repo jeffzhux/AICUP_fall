@@ -142,7 +142,7 @@ def train(model, model_ema, dataloader, augmentation, criterion, optimizer, epoc
                         f'loss(loss avg): {loss:.3f}({losses.avg:.3f}),  '
                         f'train_Acc@1: {top1.avg:.3f}  '
             )
-        
+        exit()
     if logger is not None: 
         now = time.time()
         epoch_time = format_time(now - epoch_end)

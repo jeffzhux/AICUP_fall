@@ -20,7 +20,7 @@ from datasets.build import build_dataset
 from models.build import build_model, build_ema_model
 from losses.build import build_loss
 from optimizers.build import build_optimizer
-
+from datasets.transforms.augmentations import RandomMixupCutMix
 def get_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument('config', type=str, help='config file path')
@@ -76,7 +76,7 @@ def load_weights(ckpt_path, model, model_ema, optimizer, scaler, resume=True) ->
 
     return start_epoch
 
-def train(model, model_ema, dataloader, criterion, optimizer, epoch, scaler, cfg, logger=None, writer=None):
+def train(model, model_ema, dataloader, augmentation, criterion, optimizer, epoch, scaler, cfg, logger=None, writer=None):
     model.train() # 開啟batch normalization 和 dropout
     
     batch_time = AverageMeter()
@@ -87,6 +87,7 @@ def train(model, model_ema, dataloader, criterion, optimizer, epoch, scaler, cfg
     num_iter = len(dataloader)
     iter_end = time.time()
     epoch_end = time.time()
+
     for idx, (imgs, labels, loc, text) in enumerate(dataloader):
         
         imgs = imgs.cuda(non_blocking=True)
@@ -95,19 +96,20 @@ def train(model, model_ema, dataloader, criterion, optimizer, epoch, scaler, cfg
         text = text.cuda(non_blocking=True)
 
         batch_size = imgs.size(0)
-        
+        imgs, labels, lam, index = augmentation(imgs, labels)
         # measure data loading time
         data_time.update(time.time() - iter_end)
 
         # compute output
+        
         with autocast(enabled=scaler is not None):
-            logits= model(imgs, text, loc)
-            loss = criterion(logits, labels)
-       
+            logits_metrix = model(imgs, loc, text, lam, index)
+            loss = criterion(logits_metrix, labels)
+
         losses.update(loss.item(), batch_size)
 
         # accurate
-        acc1, acc5 = accuracy(logits, labels, topk=(1,5))
+        acc1, acc5 = accuracy(logits_metrix, labels, topk=(1,5))
         top1.update(acc1.item(), batch_size)
 
         # compute gradient and do SGD step
@@ -153,14 +155,13 @@ def train(model, model_ema, dataloader, criterion, optimizer, epoch, scaler, cfg
         writer.add_scalar('Train/lr', lr, epoch)
         writer.add_scalar('Train/loss', losses.avg, epoch)
         writer.add_scalar('Train/acc@1', top1.avg, epoch)
-
+    
 def valid(model, dataloader, criterion, optimizer, epoch, cfg, logger, writer):
     model.eval() # 開啟batch normalization 和 dropout
 
     losses = AverageMeter()
     top1 = AverageMeter()
     top5 = AverageMeter()
-    test_meter = TrackMeter()
     end = time.time()
 
     with torch.no_grad():
@@ -169,13 +170,14 @@ def valid(model, dataloader, criterion, optimizer, epoch, cfg, logger, writer):
             targets = targets.cuda(non_blocking=True)
             loc = loc.cuda(non_blocking=True)
             text = text.cuda(non_blocking=True)
+
             batch_size = targets.shape[0]
-            
+
             # forward
-            logits = model(images, text, loc)
-            loss = criterion(logits, targets)
-            acc1, acc5 = accuracy(logits, targets, topk=(1,5))
-            
+            logits_metrix = model(images, loc, text)
+            loss = criterion(logits_metrix, targets)
+            acc1, acc5 = accuracy(logits_metrix, targets, topk=(1,5))
+
             # update metric
             losses.update(loss.item(), batch_size)
             top1.update(acc1.item(), batch_size)
@@ -232,7 +234,10 @@ def main_worker(rank, world_size, cfg):
     print('batch_size per gpu:', cfg.bsz_gpu)
     
     # build dataset
+    unlabel_set =  build_dataset(cfg.data.unlabel)
     train_set =  build_dataset(cfg.data.train)
+    train_set = torch.utils.data.ConcatDataset([train_set, unlabel_set])
+    
     train_collate = build_collate(cfg.data.train_collate)
     train_sampler = build_sampler(train_set, cfg.data.sampler)
     train_loader = torch.utils.data.DataLoader(
@@ -244,6 +249,8 @@ def main_worker(rank, world_size, cfg):
         sampler=train_sampler,
         drop_last=True
     )
+    
+
     valid_set = build_dataset(cfg.data.vaild)
     valid_collate = build_collate(cfg.data.valid_collate)
     valid_loader = torch.utils.data.DataLoader(
@@ -255,13 +262,15 @@ def main_worker(rank, world_size, cfg):
         drop_last=True
     )
 
+    # Augmentation
+    augmentation = RandomMixupCutMix(**cfg.data.augmentation)
+
     # build model
     model = build_model(cfg.model)
     model = torch.nn.SyncBatchNorm.convert_sync_batchnorm(model).cuda()
 
     # build criterion
-    train_criterion = build_loss(cfg.loss).cuda()
-    valid_criterion = torch.nn.CrossEntropyLoss().cuda()
+    criterion = build_loss(cfg.loss).cuda()
     # build optimizer
     # parameters = set_weight_decay(model, cfg.weight_decay)
     optimizer = build_optimizer(cfg.optimizer, model.parameters())
@@ -285,12 +294,12 @@ def main_worker(rank, world_size, cfg):
         adjust_learning_rate(cfg.lr_cfg, optimizer, epoch)
 
         # train; all processes
-        train(model, model_ema, train_loader, train_criterion, optimizer, epoch, scaler, cfg, logger, writer)
+        train(model, model_ema, train_loader, augmentation, criterion, optimizer, epoch, scaler, cfg, logger, writer)
         
         if model_ema:
-            valid(model_ema, valid_loader, valid_criterion, optimizer, epoch, cfg, logger, writer)
+            valid(model_ema, valid_loader, criterion, optimizer, epoch, cfg, logger, writer)
         else:
-            valid(model, valid_loader, valid_criterion, optimizer, epoch, cfg, logger, writer)
+            valid(model, valid_loader, criterion, optimizer, epoch, cfg, logger, writer)
         
         # save ckpt; master process
         if rank == 0 and epoch % cfg.save_interval == 0:

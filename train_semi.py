@@ -157,19 +157,16 @@ def train(model, model_ema, labeled_dataloader, unlabeled_dataloader, augmentati
         all_img = list(torch.split(all_img, batch_size))
         all_img = interleave(all_img, batch_size)
         with autocast(enabled=scaler is not None):
-            # logits = [model(all_img[0], loc, text)]
-            # for input_img in all_img[1:]:
-            #     logits.append(model(input_img, loc_u, text_u))
-            logits = model(torch.cat(all_img, dim=0), all_loc, all_text)
-            logits = list(torch.split(logits, batch_size))
+            logits = [model(all_img[0], loc, text)]
+            for input_img in all_img[1:]:
+                logits.append(model(input_img, loc_u, text_u))
+
             logits = interleave(logits, batch_size)
             logits_x = logits[0]
             logits_u = torch.cat(logits[1:], dim=0)
             loss = criterion(logits_x, all_labels[:batch_size], logits_u, all_labels[batch_size:], epoch)
-        # with autocast(enabled=scaler is not None):
-        #     logits = model(all_img, all_loc, all_text)
-        #     loss = criterion(logits[:batch_size], all_labels[:batch_size], logits[batch_size:], all_labels[batch_size:], epoch)
-        # losses.update(loss.item(), batch_size)
+
+        losses.update(loss.item(), batch_size)
 
         # accurate
         acc1, acc5 = accuracy(torch.cat(logits, dim=0), all_labels, topk=(1,5))

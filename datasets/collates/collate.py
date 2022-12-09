@@ -3,8 +3,9 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 import numpy as np
-
 import torchvision.transforms as T
+
+from models.build import build_model
 
 class CollateFunction(nn.Module):
     def __init__(self):
@@ -16,6 +17,29 @@ class CollateFunction(nn.Module):
         images = torch.stack(images)
         labels = torch.stack(labels)
         return images, labels
+class NoiseStudentCollateFunction(nn.Module):
+    def __init__(self, model_cfg, load, context_length, t):
+        super(NoiseStudentCollateFunction, self).__init__()
+        checkpoint = torch.load(load)
+        self.model = build_model(model_cfg)
+        self.model.load_state_dict(checkpoint['model_state'])
+        self.model.label_token = self.model.label_token.to('cpu')
+
+        self.context_length = context_length
+        self.T = t
+        
+    def forward(self, batch: List[tuple]):
+        
+        img, lab, loc, text = map(list,zip(*batch))
+        img = torch.stack(img)
+        # lab = torch.tensor(lab).cuda(non_blocking=True)
+        loc = torch.tensor(loc).view(-1, 2)
+        text = torch.tensor(text).view(-1, self.context_length)
+        self.model.eval()
+        with torch.no_grad():
+            pseudolabel = self.model(img, loc, text)
+            pseudolabel = pseudolabel**(1 / self.T)
+        return img, pseudolabel, loc, text
 
 class ClipCollateFunction(nn.Module):
     def __init__(self, context_length):
