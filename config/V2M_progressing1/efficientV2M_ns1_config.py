@@ -22,8 +22,8 @@ data = dict(
         model_cfg = dict(
             type="ClipNet",
             backbone = dict(
-                type = 'efficientnet_v2_m',
-                weights = 'EfficientNet_V2_M_Weights.IMAGENET1K_V1',
+                type = 'efficientnet_v2_s',
+                weights = 'EfficientNet_V2_S_Weights.IMAGENET1K_V1',
                 num_classes = num_classes
             )
         ),
@@ -74,15 +74,15 @@ data = dict(
 # model
 model_ema = dict(
     status = True,
-    steps=2,
+    steps=1,
     decay=0.99998
 )
 
 model = dict(
     type="ClipNet",
     backbone = dict(
-        type = 'efficientnet_v2_s',
-        weights = 'EfficientNet_V2_S_Weights.IMAGENET1K_V1',
+        type = 'efficientnet_v2_m',
+        weights = 'EfficientNet_V2_M_Weights.IMAGENET1K_V1',
         num_classes = num_classes
     )
 )
@@ -91,12 +91,12 @@ model = dict(
 # loss
 loss = dict(
     type = 'CrossEntropyLoss',
-    label_smoothing = 0.1
+    # label_smoothing = 0.1
 )
 
 
 # optimizer
-lr = 0.005
+lr = 0.003
 weight_decay = 1e-4
 optimizer = dict(
     type = 'SGD',
@@ -120,7 +120,7 @@ lr_cfg = dict(  # passed to adjust_learning_rate(cfg=lr_cfg)
 #log & save
 log_interval = 200
 save_interval = 20
-work_dir = './experiment/efficientV2M_Progressing1'
+work_dir = './experiment/efficientV2M_Progressing1/base1_1'
 port = 10001
 resume = None # (路徑) 從中斷的地方開始 train
 load = None # (路徑) 載入訓練好的模型 test

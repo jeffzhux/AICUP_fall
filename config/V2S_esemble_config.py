@@ -3,7 +3,6 @@ seed = 2022
 
 # test
 batch_size = 32
-draw = False
 
 #data
 data_root = './data'
@@ -59,12 +58,14 @@ model = dict(
 
 
 #log & save
+draw = False
+save_pred = True
 output_file_name = 'submission'
-work_dir = './test_experiment/efficient_noiseStudent'
-# load = './experiment/efficientV2S_Progressing4/base1_1/20221205_233405/epoch_100.pth'
-# load = './experiment/efficientV2S_Progressing4/base1_2/20221206_092628/epoch_100.pth'
-load = './experiment/efficientV2S_Progressing5/base1_2/20221210_203426/epoch_60.pth' #noise student
-# load = './experiment/efficientV2S_semi/20221209_091753/epoch_100.pth'
-# load = './experiment/efficientV2S_noiseStudent/20221210_003710/epoch_100.pth'
+work_dir = './test_experiment/V2S_ensemble'
+load = [
+    './experiment/efficientV2S_Progressing4/base1_2/20221206_092628/epoch_100.pth',
+    './experiment/efficientV2S_semi/20221209_091753/epoch_100.pth',
+    './experiment/efficientV2S_Progressing5/base1_2/20221210_203426/epoch_60.pth' #noise student
+]
 port = 10001
 
