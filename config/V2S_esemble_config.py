@@ -8,15 +8,25 @@ batch_size = 32
 data_root = './data'
 num_workers = 8
 num_classes = 33
-test_time_augmentation = dict(
-    num_of_trans = 0,
-    merge_mode = 'mean',
-    sharpen = 0.5 # weight of original image
-)
 
 data = dict(
+    # collate = dict(
+    #     type = 'ClipCollateFunction',
+    #     context_length = 2
+    # ),
+    # test = dict(
+    #     # root=f'{data_root}/ID_720/valid',
+    #     # loc_file_path = './data/ID/tag_locCoor.csv',
+    #     root=f'{data_root}/Test_720/public',
+    #     loc_file_path = './data/Test_720/tag_loccoor_public.csv',
+    #     type = 'Clip_ImageFolder',
+    #     transform = dict(
+    #         type='base',
+    #         size = (320, 320)
+    #     ),
+    # ),
     collate = dict(
-        type = 'ClipCollateFunction',
+        type = 'ClipTestTimeCollateFunction',
         context_length = 2
     ),
     test = dict(
@@ -24,11 +34,15 @@ data = dict(
         # loc_file_path = './data/ID/tag_locCoor.csv',
         root=f'{data_root}/Test_720/public',
         loc_file_path = './data/Test_720/tag_loccoor_public.csv',
-        type = 'Clip_ImageFolder',
+        type = 'Clip_TestTime_ImageFolder',
         transform = dict(
             type='base',
             size = (320, 320)
         ),
+        training_transform= [
+            dict(type='fixTest', resize = (384, 384), cropsize = (320, 320)),
+        ],
+        times=1
     ),
     idx_to_classes = {
         0: 'asparagus', 1: 'bambooshoots', 2: 'betel', 3: 'broccoli', 4: 'cauliflower', 5: 'chinesecabbage', 6: 'chinesechives',
@@ -47,25 +61,26 @@ model_ema = dict(
 )
 
 # model
-model = dict(
-    type="ClipNet",
-    backbone = dict(
-        type = 'efficientnet_v2_s',
-        num_classes = num_classes,
-    )
-)
-
+backbone_s = dict(type = 'efficientnet_v2_s',num_classes = num_classes)
+backbone_m = dict(type = 'efficientnet_v2_m',num_classes = num_classes)
+models = [
+    dict(type="ClipNet", backbone=backbone_s),
+    dict(type="ClipNet", backbone=backbone_s),
+    dict(type="ClipNet", backbone=backbone_s),
+    dict(type="ClipNet", backbone=backbone_m),
+]
 
 
 #log & save
 draw = False
-save_pred = True
+save_pred = False
 output_file_name = 'submission'
 work_dir = './test_experiment/V2S_ensemble'
 load = [
     './experiment/efficientV2S_Progressing4/base1_2/20221206_092628/epoch_100.pth',
     './experiment/efficientV2S_semi/20221209_091753/epoch_100.pth',
-    './experiment/efficientV2S_Progressing5/base1_2/20221210_203426/epoch_60.pth' #noise student
+    './experiment/efficientV2S_Progressing5/base1_2/20221210_203426/epoch_80.pth', #noise student
+    './experiment/efficientV2M_Progressing1/base1_2/20221212_144039/epoch_40.pth'
 ]
 port = 10001
 

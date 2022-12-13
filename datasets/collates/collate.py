@@ -17,6 +17,7 @@ class CollateFunction(nn.Module):
         images = torch.stack(images)
         labels = torch.stack(labels)
         return images, labels
+
 class NoiseStudentCollateFunction(nn.Module):
     def __init__(self, model_cfg, load, context_length, t):
         super(NoiseStudentCollateFunction, self).__init__()
@@ -54,6 +55,20 @@ class ClipCollateFunction(nn.Module):
         text = torch.tensor(text).view(-1, self.context_length)
         return img, lab, loc, text
 
+class ClipTestTimeCollateFunction(nn.Module):
+    def __init__(self, context_length):
+        super(ClipTestTimeCollateFunction, self).__init__()
+        self.context_length = context_length
+    def forward(self, batch: List[tuple]):
+        *img, lab, loc, text = map(list,zip(*batch))
+        for i in range(len(img)):
+            img[i] = torch.stack(img[i])
+        lab = torch.tensor(lab)
+        loc = torch.tensor(loc).view(-1, 2)
+        text = torch.tensor(text).view(-1, self.context_length)
+
+        return img, lab, loc, text
+
 class ClipFunction(nn.Module):
     def __init__(self, num_classes, mixup_alpha=0.2, cutmix_alpha=1.0):
         super(ClipFunction, self).__init__()
@@ -73,7 +88,6 @@ class ClipFunction(nn.Module):
         loc = torch.tensor(loc)
         text = torch.tensor(text)
         return torch.concat((img1, img2), dim=0), torch.concat((lab1, lab2), dim=0), loc, text
-
 
 class ClipUnlabelCollateFunction(nn.Module):
     def __init__(self, context_length):

@@ -4,7 +4,7 @@ amp = False
 
 #train
 epochs = 1#100
-batch_size = 32#256
+batch_size = 32#128
 num_workers = 8
 num_classes = 33
 

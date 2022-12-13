@@ -102,6 +102,7 @@ def fixTest(resize: Tuple = (320,320), cropsize: Tuple = (224, 224)):
     transform = transforms.Compose([
         T.Resize(resize),
         T.CenterCrop(cropsize),
+        T.RandomHorizontalFlip(1),
         T.ToTensor(),
         T.Normalize(imagenet_normalize['mean'], imagenet_normalize['std'])
     ])

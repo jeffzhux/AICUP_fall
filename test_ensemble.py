@@ -19,7 +19,6 @@ from models.build import build_model, build_ema_model
 from utils.config import Config
 from utils.util import Metric, accuracy, set_seed
 from utils.build import build_logger
-from utils.test_time_augmentation import TestTimeAugmentation
 from sklearn import metrics
 import matplotlib.pyplot as plt
 from utils.util import visualize
@@ -62,38 +61,46 @@ def load_weights(ckpt_path: str, model: nn.Module, model_ema: nn.Module) -> None
     model.load_state_dict(ckpt['model_state'])
     model_ema.load_state_dict(ckpt['model_ema_state'])
 @torch.no_grad()
-def iterate_data(models, model_emas, dataloader, cfg):
+def iterate_data(models, dataloader, cfg):
     
     pred_class = {}
     features = {}
     target = []
-    for model_path in cfg.load:
-        pred_class[model_path.split('/')[-2]] = []
-        features[model_path.split('/')[-2]] = []
+    for name in models.keys():
+        pred_class[name] = []
+        features[name] = []
 
     for idx, (images, labels, loc, text) in enumerate(dataloader):
-        images = images.float().cuda()
-        labels = labels.cuda()
-        loc = loc.cuda()
+        batch_size = images[0].size(0)
+        
+        loc = loc.repeat(len(images), 1).cuda()
+        text = text.repeat(len(images), 1)
 
+        images = torch.cat(images, dim=0)
+        images = images.float().cuda()
+        
         # forward
-        for model_path, model in zip(cfg.load, models):
-            model_name = model_path.split('/')[-2]
+        for name, model in models.items():
+
             logits = model(images, loc, text)
-            pred_class[model_name].append(logits.cpu())
+            logits = torch.softmax(logits, dim=-1)
+            if logits.size(0) != batch_size:
+                logits = logits.view(-1, batch_size, logits.size(-1))
+                logits = 0.5 * logits[0] + 0.5 * torch.mean(logits[1:], dim=0)
+                
+            pred_class[name].append(logits.cpu())
 
             if cfg.draw:
                 feature = model.module.image_encoder.features(images)
                 feature = model.module.image_encoder.avgpool(feature)            
-                features[model_name].append(feature.cpu())
+                features[name].append(feature.cpu())
 
         target.append(labels.cpu())
     
-    for model_path in cfg.load:
-        model_name = model_path.split('/')[-2]
-        pred_class[model_name] = torch.cat(pred_class[model_name])
+    for name in models.keys():
+        pred_class[name] = torch.cat(pred_class[name])
         if cfg.draw:
-            features[model_name] = torch.cat(features[model_name])
+            features[name] = torch.cat(features[name])
     target = torch.cat(target)
 
     
@@ -104,29 +111,27 @@ def iterate_data(models, model_emas, dataloader, cfg):
     return pred_class, target, features
 
 @torch.no_grad()
-def run_eval(models, model_emas, test_loader, dataset, cfg):
+def run_eval(models, test_loader, dataset, cfg):
     
     if cfg.save_pred:
         print(f'save model predict')
-        models_pred, target, models_features = iterate_data(models, model_emas, test_loader, cfg)
+        models_pred, target, models_features = iterate_data(models, test_loader, cfg)
     else:
         print(f'load model predict')
         models_pred = torch.load(f'{cfg.work_dir}/pred_class.pt')
         target = torch.load(f'{cfg.work_dir}/target.pt')
         models_features = torch.load(f'{cfg.work_dir}/features.pt')
-    
     idx_to_classes = cfg.data.idx_to_classes
 
-    # pred_class = models_pred[list(models_pred.keys())[1]]
     pred_class = None
-    for model_path in cfg.load:
-        model_name = model_path.split('/')[-2]
+    
+    for name, logits in models_pred.items():
         if pred_class is None:
-            pred_class = torch.softmax(models_pred[model_name], dim=-1)
+            pred_class = logits
         else:
-            pred_class += torch.softmax(models_pred[model_name], dim=-1)
-        
-    pred_class = pred_class / len(cfg.load)
+            pred_class += logits
+    
+    pred_class = pred_class / len(models)
     
     metrix = Metric(pred_class.size(-1))
     metrix.update(pred_class, target)
@@ -163,37 +168,47 @@ def run_eval(models, model_emas, test_loader, dataset, cfg):
     print(f'wp : {wp.item()}')
 
 @torch.no_grad()
-def run_inference(models, model_ema, dataloader, dataset, cfg):
+def run_inference(models, dataloader, dataset, cfg):
     pred_logit = {}
     idx_to_classes = cfg.data.idx_to_classes
-    for model_path in cfg.load:
-        pred_logit[model_path.split('/')[-2]] = []
+
+    for name, model in models.items():
+        pred_logit[name] = []
 
     for idx, (images, _, loc, text) in enumerate(dataloader):
-        images = images.float().cuda()
-        loc = loc.cuda()
-        text = text.cuda()
-        # forward
-        for model_path, model in zip(cfg.load, models):
-            logits = model(images, loc, text)
-            model_name = model_path.split('/')[-2]
-            pred_logit[model_name].append(logits)
 
-    for model_path in cfg.load:
-        model_name = model_path.split('/')[-2]
-        pred_logit[model_name] = torch.cat(pred_logit[model_name])
+        batch_size = images[0].size(0)
+        
+        loc = loc.repeat(len(images), 1).cuda()
+        text = text.repeat(len(images), 1).cuda()
+
+        images = torch.cat(images, dim=0)
+        images = images.float().cuda()
+
+        # forward
+        for name, model in models.items():
+            logits = model(images, loc, text)
+            logits = torch.softmax(logits, dim=-1)
+            if logits.size(0) != batch_size:
+                logits = logits.view(-1, batch_size, logits.size(-1))
+                logits = 0.5 * logits[0] + 0.5 * torch.mean(logits[1:], dim=0)
+            pred_logit[name].append(logits)
+            
+    for name in models.keys():
+        pred_logit[name] = torch.cat(pred_logit[name])
 
     torch.save(pred_logit, f'{cfg.work_dir}/pred_logit.pt')
 
     pred_class = None
-    for model_path in cfg.load:
-        model_name = model_path.split('/')[-2]
+    for name, logits in pred_logit.items():
         if pred_class is None:
-            pred_class = torch.softmax(pred_logit[model_name], dim=-1)
+            # pred_class = torch.softmax(logits, dim=-1)
+            pred_class = logits
         else:
-            pred_class += torch.softmax(pred_logit[model_name], dim=-1)
+            # pred_class += torch.softmax(logits, dim=-1)
+            pred_class += logits
 
-    pred_class = pred_class / len(cfg.load)
+    pred_class = pred_class / len(pred_logit)
     pred_class = torch.argmax(pred_class, dim=-1).cpu().tolist()
 
     pred_class = list(map(lambda x: idx_to_classes[x], pred_class))
@@ -212,6 +227,7 @@ def main_worker(rank, world_size, cfg):
     local_rank = rank % 8
     cfg.local_rank = local_rank
     torch.cuda.set_device(rank)
+    torch.cuda.empty_cache()
     set_seed(cfg.seed+rank, cuda_deterministic=True)
 
     print(f'System : {platform.system()}')
@@ -238,23 +254,23 @@ def main_worker(rank, world_size, cfg):
         pin_memory = True,
         drop_last = False
     )
-
-    model_ensemble = []
-    model_ema_ensemble = []
-    for load_path in cfg.load:
-        model_ensemble.append(build_model(cfg.model))
-        model_ensemble[-1].cuda()
+    model_ensemble = {}
+    for idx, load_path in enumerate(cfg.load):
+        name = load_path.split('/')[-2]
+        model_ensemble[name] = build_model(cfg.models[idx])
+        model_ensemble[name].cuda()
         
-        model_ensemble[-1] = torch.nn.parallel.DistributedDataParallel(model_ensemble[-1], device_ids=[cfg.local_rank])
-        model_without_ddp = model_ensemble[-1].module
+        model_ensemble[name] = torch.nn.parallel.DistributedDataParallel(model_ensemble[name], device_ids=[cfg.local_rank])
+        model_without_ddp = model_ensemble[name].module
         
-        model_ema_ensemble.append(build_ema_model(model_without_ddp, cfg))
-        load_weights(load_path, model_without_ddp, model_ema_ensemble[-1])
-        model_ema_ensemble[-1] = torch.nn.parallel.DistributedDataParallel(model_ema_ensemble[-1], device_ids=[cfg.local_rank])
+        model_ensemble[f'{name}_ema'] = build_ema_model(model_without_ddp, cfg)
+        load_weights(load_path, model_without_ddp, model_ensemble[f'{name}_ema'])
+        model_ensemble[f'{name}_ema'] = torch.nn.parallel.DistributedDataParallel(model_ensemble[f'{name}_ema'], device_ids=[cfg.local_rank])
 
-        model_ensemble[-1].eval()
-        model_ema_ensemble[-1].eval()
+        model_ensemble[name].eval()
+        model_ensemble[f'{name}_ema'].eval()
 
+    print(model_ensemble.keys())
     print(f"==> Start testing ....")
     # We disable the cudnn benchmarking because it can noticeably affect the accuracy
     cudnn.benchmark = False
@@ -263,9 +279,9 @@ def main_worker(rank, world_size, cfg):
     
     # with torch.inference_mode:
     if cfg.output_file_name is not None:
-        run_inference(model_ensemble, model_ema_ensemble, test_loader, test_set, cfg)
+        run_inference(model_ensemble, test_loader, test_set, cfg)
     else:
-        run_eval(model_ensemble, model_ema_ensemble, test_loader, test_set, cfg)
+        run_eval(model_ensemble, test_loader, test_set, cfg)
         
     # run_eval(model_ema, test_loader, tta, cfg)
 def main():

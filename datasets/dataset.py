@@ -2,11 +2,12 @@ import numpy as np
 import os
 import csv
 import torch
-from torchvision.datasets import ImageFolder, VisionDataset
+from torchvision.datasets import ImageFolder
 import  torch.nn.functional as F
 from typing import Any, Callable, cast, Dict, List, Optional, Tuple, Union
 from datasets.tokenizer import area_vocab
 from datasets.transforms.aicup import base
+from datasets.transforms.build import build_transform
 from torch.utils.data import Dataset
 from PIL import Image
 
@@ -213,7 +214,6 @@ class loc_Dataset(Dataset):
     def __len__(self):
         return len(self.sample)
 
-
 class loc_ImageFolder(ImageFolder):
     def __init__(
         self,
@@ -314,119 +314,6 @@ class loc_ImageFolder(ImageFolder):
         target = target.type(torch.float32)
 
         return sample, target, loc
-
-
-
-class Kmean_ImageFolder(ImageFolder):
-    def __init__(
-        self,
-        root: str,
-        num_extra_others: int,
-        transform: Optional[Callable] = None,
-        target_transform: Optional[Callable] = None
-    ):
-        super().__init__(root, transform=transform, target_transform=target_transform)
-        self.num_of_classes = len(self.classes)
-        self.num_extra_others = num_extra_others
-
-        self.extra_others_targets = [(idx, 0) for idx, s in enumerate(self.samples) if s[1] == self.class_to_idx['others']]
-
-    def has_file_allowed_extension(self, filename: str, extensions: Union[str, Tuple[str, ...]]) -> bool:
-        return filename.lower().endswith(extensions if isinstance(extensions, str) else tuple(extensions))
-
-    def find_classes(self, directory: str) -> Tuple[List[str], Dict[str, int]]:
-        classes = sorted(entry.name for entry in os.scandir(directory) if entry.is_dir())
-        if not classes:
-            raise FileNotFoundError(f"Couldn't find any class folder in {directory}.")
-        
-        if 'others' in classes:
-            classes.remove('others')
-            classes.append('others')
-        class_to_idx = {cls_name: i for i, cls_name in enumerate(classes)}
-        return classes, class_to_idx
-
-    def make_dataset(
-        self,
-        directory: str,
-        class_to_idx: Optional[Dict[str, int]] = None,
-        extensions: Optional[Union[str, Tuple[str, ...]]] = None,
-        is_valid_file: Optional[Callable[[str], bool]] = None,
-    ) -> List[Tuple[str, int]]:
-
-        directory = os.path.expanduser(directory)
-
-        if class_to_idx is None:
-            _, class_to_idx = self.find_classes(directory)
-        elif not class_to_idx:
-            raise ValueError("'class_to_index' must have at least one entry to collect any samples.")
-
-        both_none = extensions is None and is_valid_file is None
-        both_something = extensions is not None and is_valid_file is not None
-        if both_none or both_something:
-            raise ValueError("Both extensions and is_valid_file cannot be None or not None at the same time")
-
-        if extensions is not None:
-
-            def is_valid_file(x: str) -> bool:
-                return self.has_file_allowed_extension(x, extensions)  # type: ignore[arg-type]
-
-        filename_to_loc = {}
-        with open('./data/ID/tag_locCoor.csv', mode = 'r') as inp:
-            reader = csv.reader(inp)
-            for i, v in enumerate(reader):
-                if i > 0:
-                    filename_to_loc[v[1]] = [
-                        (float(v[7]) - 21.896823) / (25.299653 - 21.896823),
-                        (float(v[6]) - 120.035198) / (122.007112 - 120.035198)
-                        ]
-
-        is_valid_file = cast(Callable[[str], bool], is_valid_file)
-
-        instances = []
-        available_classes = set()
-        for target_class in sorted(class_to_idx.keys()):
-            class_index = class_to_idx[target_class]
-            target_dir = os.path.join(directory, target_class)
-            if not os.path.isdir(target_dir):
-                continue
-            for root, _, fnames in sorted(os.walk(target_dir, followlinks=True)):
-                for fname in sorted(fnames):
-                    path = os.path.join(root, fname)
-                    if is_valid_file(path):
-                        item = path, class_index, filename_to_loc[fname]
-                        instances.append(item)
-
-                        if target_class not in available_classes:
-                            available_classes.add(target_class)
-
-        empty_classes = set(class_to_idx.keys()) - available_classes
-        if empty_classes:
-            msg = f"Found no valid file for the classes {', '.join(sorted(empty_classes))}. "
-            if extensions is not None:
-                msg += f"Supported extensions are: {extensions if isinstance(extensions, str) else ', '.join(extensions)}"
-            raise FileNotFoundError(msg)
-
-        return instances
-
-    def __getitem__(self, index: int) -> Tuple[Any, Any]:
-        """
-        Args:
-            index (int): Index
-        Returns:
-            tuple: (sample, target) where target is class_index of the target class.
-        """
-        path, target, loc = self.samples[index]
-        sample = self.loader(path)
-        if self.transform is not None:
-            sample = self.transform(sample)
-
-        others_idx, others_targets = zip(*self.extra_others_targets)
-        target += others_targets[index-others_idx[0]] if index in others_idx else 0
-        target = torch.tensor(target)
-        target = F.one_hot(target, (self.num_of_classes + self.num_extra_others))
-        target = target.type(torch.float32)
-
-        return sample, target, loc, 
 
 class Clip_ImageFolder(ImageFolder):
     def __init__(
@@ -551,3 +438,20 @@ class ClipUnlabel_ImageFolder(Clip_ImageFolder):
             sample1, sample2 = self.transform(sample), self.transform(sample)
 
         return sample1, sample2, loc, text
+
+class Clip_TestTime_ImageFolder(Clip_ImageFolder):
+
+    def __init__(self, training_transform, times=0, **args):
+        
+        super().__init__(**args)
+        self.times = times
+        self.training_transform = [build_transform(tt) for tt in training_transform]
+    def __getitem__(self, index: int) -> Tuple[Any, Any]:
+        path, target, loc, text = self.samples[index]
+
+        sample = self.loader(path)
+        if self.transform is not None:
+            images = [self.transform(sample)]
+            images.extend([self.training_transform[i](sample) for i in range(self.times)])
+
+        return *images, target, loc, text
