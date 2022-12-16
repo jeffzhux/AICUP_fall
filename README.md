@@ -1,7 +1,7 @@
 ## 農地作物現況調查影像辨識競賽-秋季賽 : AI作物影像判識
 <div>
     <a align="center" href="https://github.com/jeffzhux/AICUP_fall">
-        <img width="850" src="https://github.com/jeffzhux/AICUP_fall/blob/master/Images/aicup.png">
+        <img src="https://github.com/jeffzhux/AICUP_fall/blob/master/Images/aicup.png">
     </a>
 </div>
 
