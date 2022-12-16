@@ -1,14 +1,7 @@
 ## 農地作物現況調查影像辨識競賽-秋季賽 : AI作物影像判識
 
 ## Approach
-<div>
-    <a align="center" href="https://github.com/jeffzhux/AICUP_fall">
-        <img src="https://github.com/jeffzhux/AICUP_fall/blob/master/Images/aicup.png">
-    </a>
-    <br>
-</div>
-![AICUP_FALL](./Images/aicup.png)
-
+![AICUP_fall](/Images/aicup.png)
 
 ## Getting Started
 
@@ -28,7 +21,7 @@ pip install -r requirements.txt
     │   │   ├── 000b43a3-d331-47ad-99a4-4c0fa9b48298.jpg
     │   │   ├── 00a326ba-7e9a-4bc1-8684-4bf404bfd6bb.jpg
     │   │   ├── ...
-    │   │   └─ 0a550bc0-9b1f-4fa8-81cc-9b518af29c89.jpg
+    │   │   └── 0a550bc0-9b1f-4fa8-81cc-9b518af29c89.jpg
     │   ├── bambooshoots
     │   ├── ...
     │   └── waterbamboo
