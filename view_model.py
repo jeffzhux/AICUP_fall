@@ -1,167 +1,56 @@
 import torch
-import torch.nn as nn
-import torchvision
-from datasets.build import build_dataset
-from datasets.collates.build import build_collate
-from datasets.transforms import baseOnImageNet
-from datasets.sampler.sampler import OOD_Sampler
-from datasets.collates import RandomMixupCutMixCollate
-from typing import Optional, Any, Tuple
-from torch.autograd import Function
-from utils.config import ConfigDict
-
-x = torch.rand((4,3,32,32))
-cfg = ConfigDict()
-cfg.bsz_gpu = 512
-cfg.world_size = 2
-cfg.model_ema = ConfigDict(
-    status = True,
-    steps = 25,
-    decay = 0.99998
-)
-cfg.model = ConfigDict(
-    backbone = ConfigDict(
-        type = 'efficientnet_v2_s',
-        weights = 'EfficientNet_V2_S_Weights.IMAGENET1K_V1',
-        dropout_rate = 0.1,
-        num_classes = 33 
-    )
-    
-)
-cfg.epochs = 100
-cfg.data = ConfigDict(
-    collate = ConfigDict(
-        type = 'TestTimeCollate',
-    ),
-    train = ConfigDict(
-        root=f'data/OSDA/source',
-        type = 'TestTimeAICUP_DataSet',
-        transform = dict(
-            type='base',
-        ),
-        base_transform = dict(
-            type='base',
-            size = (16, 16)
-        ),
-        num_of_trans = 0
-    ),
-    test = ConfigDict(
-        root=f'data/OSDA/target',
-        type = 'TestTimeAICUP_DataSet',
-        transform = dict(
-            type='base',
-        ),
-        base_transform = dict(
-            type='base',
-            size = (16, 16)
-        ),
-        num_of_trans = 0
-    )
-    
-)
-class GradientReverseFunction(Function):
-
-    @staticmethod
-    def forward(ctx: Any, input: torch.Tensor, coeff: Optional[float] = 1.) -> torch.Tensor:
-        ctx.coeff = coeff
-        output = input * 1.0
-        return output
-
-    @staticmethod
-    def backward(ctx: Any, grad_output: torch.Tensor) -> Tuple[torch.Tensor, Any]:
-        return grad_output.neg() * ctx.coeff, None
-
-
-class GradientReverseLayer(nn.Module):
-    def __init__(self):
-        super(GradientReverseLayer, self).__init__()
-
-    def forward(self, *input):
-        return GradientReverseFunction.apply(*input)
-    
-class OSDANet(nn.Module):
-    def __init__(self, cfg: ConfigDict):
-        super(OSDANet, self).__init__()
-        args = cfg.copy()
-
-        backbone_args = cfg.backbone.copy()
-
-        backbone_name = backbone_args.pop('type')
-        num_classes = backbone_args.pop('num_classes')
-        dropout_rate =  backbone_args.pop('dropout_rate') if backbone_args.get('dropout_rate') != None else None
-        self.backbone = getattr(torchvision.models, backbone_name)(**backbone_args)
-        if dropout_rate != None:
-            self.backbone.classifier[-2].p = dropout_rate
-        self.backbone.classifier[-1] = nn.Linear(self.backbone.classifier[-1].in_features, num_classes)
-    
-    def forward(self, x, reverse=False):
-        x = self.backbone.features(x)
-        x = self.backbone.avgpool(x)
-
-        x = self.backbone.classifier(x)
-
-        return x
-
-model = OSDANet(cfg.model)
-test_set = build_dataset(cfg.data.test)
-
-# dataset = test_set
-print(test_set.class_to_idx)
-# ood_sampler = OOD_Sampler(test_set, shuffle=True)
-
-test_collate = build_collate(cfg.data.collate)
-test_loader = torch.utils.data.DataLoader(
-    test_set,
-    batch_size = cfg.bsz_gpu,
-    num_workers = 0,
-    shuffle = False,
-    # collate_fn = test_collate,
-    pin_memory = True,
-    drop_last = False
-)
-
-a = {
-        'asparagus': 0, 'bambooshoots': 1, 'betel': 2, 'broccoli': 3, 'cauliflower': 4, 'chinesecabbage': 5, 'chinesechives': 6,
-        'custardapple': 7, 'grape': 8, 'greenhouse': 9, 'greenonion': 10, 'kale': 11, 'lemon': 12, 'lettuce': 13, 'litchi': 14,
-        'longan': 15, 'loofah': 16, 'mango': 17, 'onion': 18, 'papaya': 19, 'passionfruit': 20, 'pear': 21, 'pennisetum': 22,
-        'redbeans': 23, 'roseapple': 24, 'sesbania': 25, 'soybeans': 26, 'sunhemp': 27, 'sweetpotato': 28, 'taro': 29, 'tea': 30,
-        'waterbamboo': 31, 'others': 32}
-print({v: k for k, v in a.items()})
-
-# with open('./training/tag_locCoor.csv', mode = 'r') as inp:
-#     reader = csv.reader(inp)
-#     for i, v in enumerate(reader):
-#         if i > 0:
-#             print((float(v[7]) - 21.896823) / (25.299653 - 21.896823))
-#             print((float(v[6]) - 120.035198) / (122.007112 - 120.035198))
-#             break
-
-
-
-
-# from utils.kmean import KMEANS
-# import numpy as np
-# import matplotlib.cm as cm
-# import matplotlib.pyplot as plt
-
-# n_clusters = 5
-# colors = cm.nipy_spectral(np.linspace(0, 1, n_clusters))
-# matrix = torch.randn((1000,2))
-
-# kmean = KMEANS(n_clusters = n_clusters, verbose=False)
-# kmean.fit(matrix)
-# for i in range(n_clusters):
-#     plt.scatter(matrix[kmean.labels == i][:,0], matrix[kmean.labels == i][:, 1], color=colors[i])
-# plt.savefig('test.png')
+from utils.util import Metric
+from sklearn import metrics
 import numpy as np
 
-def linear_rampup(current, rampup_length=100):
-    if rampup_length == 0:
-        return 1.0
-    else:
-        current = np.clip(current / rampup_length, 0.0, 1.0)
-        return float(current)
+models_pred = torch.load(f'./test_experiment/V2S_ensemble/pred_class_80.pt')
+target = torch.load(f'./test_experiment/V2S_ensemble/target.pt')
 
-a = linear_rampup(10)
-for i in range(50):
-    print(linear_rampup(i))
+def get_wp(models):
+    pred_class = None
+    for name in models:
+        if pred_class is None:
+            pred_class = models_pred[name]
+        else:
+            pred_class += models_pred[name]
+    pred_class = pred_class / len(models)
+
+    metrix = Metric(pred_class.size(-1))
+    metrix.update(pred_class, target)
+    f1 = metrix.f1_score('none')
+    wp = metrix.accuracy('mean')
+    return wp.item(), f1[-1].item()
+
+
+
+# # keys = ['20221210_203426', '20221212_144039', '20221206_092628'] max_value = 0.8879038095474243, 0.893463671207428, 0.8956134915351868
+
+# keys = ['20221210_203426_ema', '20221212_144039', '20221209_091753_ema']
+# # max_value = 0.6798029541969299, 0.6777251362800598
+# ck = []
+# max_value = 0
+# for key, model in models_pred.items():
+#     a = {k :models_pred [k]for k in ck}
+#     if key not in keys:
+#         a.update({key: model})
+#         tck = ck.extend(key)
+#         max_value = max(get_wp(a), max_value)
+#         print(get_wp(a), key)
+models = np.array(list(models_pred.keys()))
+max_models = None
+maxInclass = 0
+maxOther = 0
+for i in [1,2,4,8,16,32,64,128]:#range(1,256):
+    mask = np.array(list(str(format(i, 'b')).zfill(8)))
+
+    models_list = models[np.where(mask == "1")[0]]
+    in_score, other_score = get_wp(models_list)
+    print(models_list, in_score)
+    if maxOther < other_score:
+        maxInclass = in_score
+        maxOther = other_score
+        max_models = models_list
+    
+print(max_models)
+print(maxInclass)
+print(maxOther)

@@ -124,13 +124,11 @@ def run_eval(models, test_loader, dataset, cfg):
     idx_to_classes = cfg.data.idx_to_classes
 
     pred_class = None
-    
     for name, logits in models_pred.items():
         if pred_class is None:
             pred_class = logits
         else:
             pred_class += logits
-    
     pred_class = pred_class / len(models)
     
     metrix = Metric(pred_class.size(-1))
@@ -269,9 +267,14 @@ def main_worker(rank, world_size, cfg):
 
         model_ensemble[name].eval()
         model_ensemble[f'{name}_ema'].eval()
-
-    print(model_ensemble.keys())
-    print(f"==> Start testing ....")
+        
+        if name not in ['20221210_203426_ema', '20221212_144039_ema']:
+            # print(f'delete {name}')
+            del model_ensemble[name]
+        if f'{name}_ema' not in ['20221210_203426_ema', '20221212_144039_ema']:
+            # print(f'delete {name}_ema')
+            del model_ensemble[f'{name}_ema']
+    
     # We disable the cudnn benchmarking because it can noticeably affect the accuracy
     cudnn.benchmark = False
     cudnn.deterministic = True

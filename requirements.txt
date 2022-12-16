@@ -4,5 +4,4 @@ pandas
 addict
 yapf
 regex
-mmcls
-mmcv-full
+scikit-learn
