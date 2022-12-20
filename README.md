@@ -35,7 +35,7 @@ pip install -r requirements.txt
 
 ### Pretrained Checkpoints
 
-| Model                                                                                                            | Backbone        | Size | Epoch | Acc   | Acc<sup>ema| params<sup>(M) |
+| Model                                                                                                            | Backbone        | Size | Epoch | Acc   | Acc<sup>ema| params(M) |
 |------------------------------------------------------------------------------------------------------------------|-----------------|------|-------|-------|------------|--------|
 | [Teacher Model](https://github.com/jeffzhux/AICUP_fall/releases/download/v1.0.0/Teacher_model_epoch_100.pth)     | EfficientNetV2s | 224  |  100  | 88.68 | 88.08      | 32.1   |
 | [Noise Student](https://github.com/jeffzhux/AICUP_fall/releases/download/v1.0.0/v2s_noise_student_epoch_100.pth) | EfficientNetV2s | 224  |  100  | 88.80 | 88.44      | 32.1   |
