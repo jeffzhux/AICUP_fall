@@ -15,10 +15,10 @@ data = dict(
         context_length = 2
     ),
     test = dict(
-        # root=f'{data_root}/ID_720/valid',
-        # loc_file_path = './data/ID/tag_locCoor.csv',
-        root=f'{data_root}/Test_720',
-        loc_file_path = './data/Test_720/tag_loccoor_public_private.csv',
+        root=f'{data_root}/ID_720/valid',
+        loc_file_path = './data/ID/tag_locCoor.csv',
+        # root=f'{data_root}/Test_720',
+        # loc_file_path = './data/Test_720/tag_loccoor_public_private.csv',
         type = 'Clip_TestTime_ImageFolder',
         transform = dict(
             type='base',
@@ -59,8 +59,8 @@ models = [
 #log & save
 draw = False
 save_pred = False
-output_file_name = 'submission'
-work_dir = './test_experiment/final_two_ema'
+output_file_name = None #'submission'
+work_dir = './test_experiment/V2S_ensemble'
 load = [
     './experiment/efficientV2S_Progressing4/base1_2/20221206_092628/epoch_100.pth',
     './experiment/efficientV2S_semi/20221209_091753/epoch_100.pth',

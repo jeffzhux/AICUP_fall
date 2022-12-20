@@ -35,12 +35,12 @@ pip install -r requirements.txt
 
 ### Pretrained Checkpoints
 
-| Model                                                                                                                | size | epoch | acc   | acc<sup>ema|
-|----------------------------------------------------------------------------------------------------------------------|------|-------|-------|------------|
-| [Teacher Model-v2s](https://github.com/jeffzhux/AICUP_fall/releases/download/v1.0.0/Teacher_model_epoch_100.pth)     | 224  |  100  | 88.68 | 88.08      |
-| [Noise Student-v2s](https://github.com/jeffzhux/AICUP_fall/releases/download/v1.0.0/v2s_noise_student_epoch_100.pth) | 224  |  100  | 88.80 | 88.44      |
-| [Noise Student-v2m](https://github.com/jeffzhux/AICUP_fall/releases/download/v1.0.0/v2m_noise_student_epoch_80.pth)  | 224  |   80  | 88.17 | 87.16      |
-| [MixMatch-v2s](https://github.com/jeffzhux/AICUP_fall/releases/download/v1.0.0/v2s_mixmatch_epoch_100.pth)           | 224  |  100  | 85.90 | 86.81      |
+| Model                                                                                                            | Backbone        | Size | Epoch | Acc   | Acc<sup>ema| params<sup>(M) |
+|------------------------------------------------------------------------------------------------------------------|-----------------|------|-------|-------|------------|--------|
+| [Teacher Model](https://github.com/jeffzhux/AICUP_fall/releases/download/v1.0.0/Teacher_model_epoch_100.pth)     | EfficientNetV2s | 224  |  100  | 88.68 | 88.08      | 32.1   |
+| [Noise Student](https://github.com/jeffzhux/AICUP_fall/releases/download/v1.0.0/v2s_noise_student_epoch_100.pth) | EfficientNetV2s | 224  |  100  | 88.80 | 88.44      | 32.1   |
+| [Noise Student](https://github.com/jeffzhux/AICUP_fall/releases/download/v1.0.0/v2m_noise_student_epoch_80.pth)  | EfficientNetV2m | 224  |   80  | 88.17 | 87.16      | 64.8   |
+| [MixMatch](https://github.com/jeffzhux/AICUP_fall/releases/download/v1.0.0/v2s_mixmatch_epoch_100.pth)           | EfficientNetV2s | 224  |  100  | 85.90 | 86.81      | 32.1   |
 
 ### Train
 * Train Teacher Model (Supervised Learning)
